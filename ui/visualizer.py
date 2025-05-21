@@ -44,12 +44,12 @@ class OSVisualizer(tk.Tk):
         self.control_frame = ttk.LabelFrame(self, text="Controls")
         self.control_frame.pack(fill="x", padx=10, pady=5)
 
-        ttk.Button(self.control_frame, text="Launch Camera", command=self.launch_camera).pack(side="left", padx=5)
-        ttk.Button(self.control_frame, text="Launch Music", command=self.launch_music).pack(side="left", padx=5)
-        ttk.Button(self.control_frame, text="Close Camera", command=lambda: self.close_process(1)).pack(side="left", padx=5)
-        ttk.Button(self.control_frame, text="Close Music", command=lambda: self.close_process(2)).pack(side="left", padx=5)
-        ttk.Button(self.control_frame, text="Close All", command=self.close_all_processes).pack(side="left", padx=5)
-        ttk.Button(self.control_frame, text="X", command=self.quit).pack(side="left", padx=5)
+        ttk.Button(self.control_frame, text="Launch Camera", command=self.launch_camera).pack(side="left", padx=3)
+        ttk.Button(self.control_frame, text="Launch Music", command=self.launch_music).pack(side="left", padx=3)
+        ttk.Button(self.control_frame, text="Close Camera", command=lambda: self.close_process(1)).pack(side="left", padx=3)
+        ttk.Button(self.control_frame, text="Close Music", command=lambda: self.close_process(2)).pack(side="left", padx=3)
+        ttk.Button(self.control_frame, text="Close All", command=self.close_all_processes).pack(side="left", padx=3)
+        ttk.Button(self.control_frame, text="X", command=self.quit).pack(side="left", padx=1)
 
     def launch_camera(self):
         app = PCB(pid=1, app_name="Camera", state="READY", priority=1)
