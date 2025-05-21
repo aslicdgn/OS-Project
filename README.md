@@ -35,3 +35,9 @@ python -m tkinter
 ```bash
 sudo apt-get install python3-tk
 ```
+
+## Controlling OS Visualizer
+
+```bash
+python ui/visualizer.py
+```
