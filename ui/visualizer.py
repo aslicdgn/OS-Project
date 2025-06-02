@@ -5,6 +5,7 @@ import tkinter as tk
 from tkinter import ttk
 from process.pcb import PCB
 from process.scheduler import Scheduler
+from process.manager import ProcessManager
 from memory.memory_manager import MemoryManager
 from filesystem.mobile_fs import FileSystem
 
@@ -16,6 +17,7 @@ class OSVisualizer(tk.Tk):
         self.geometry("700x500")
 
         self.scheduler = Scheduler()
+        self.process_manager = ProcessManager(self.scheduler)
         self.memory = MemoryManager(size=50)
         self.fs = FileSystem()
 
@@ -46,8 +48,8 @@ class OSVisualizer(tk.Tk):
 
         ttk.Button(self.control_frame, text="Launch Camera", command=self.launch_camera).pack(side="left", padx=3)
         ttk.Button(self.control_frame, text="Launch Music", command=self.launch_music).pack(side="left", padx=3)
-        ttk.Button(self.control_frame, text="Close Camera", command=lambda: self.close_process(1)).pack(side="left", padx=3)
-        ttk.Button(self.control_frame, text="Close Music", command=lambda: self.close_process(2)).pack(side="left", padx=3)
+        ttk.Button(self.control_frame, text="Close Camera", command=lambda: self.close_process_by_name("Camera")).pack(side="left", padx=3)
+        ttk.Button(self.control_frame, text="Close Music", command=lambda: self.close_process_by_name("Music")).pack(side="left", padx=3)
         ttk.Button(self.control_frame, text="Close All", command=self.close_all_processes).pack(side="left", padx=3)
         ttk.Button(self.control_frame, text="X", command=self.quit).pack(side="left", padx=1)
 
@@ -92,16 +94,24 @@ class OSVisualizer(tk.Tk):
         self.file_text.delete("1.0", tk.END)
         self.file_text.insert(tk.END, f"Files: {', '.join(self.fs.list_files())}\n")
         
-    def close_process(self, pid):
-        self.scheduler.remove_process(pid) 
-        self.memory.deallocate(pid)
-        self.refresh()
+    def close_process_by_name(self, app_name):
+        queues = self.scheduler.list_queues()
+        for queue in queues.values():
+            for pcb in queue:
+                if pcb.app_name == app_name:
+                    self.process_manager.terminate_process(pcb.pid)
+                    self.memory.deallocate(pcb.pid)
+                    self.refresh()
+                    return
+        print(f"No running process found with name '{app_name}'")
 
     def close_all_processes(self):
         pids = [pcb.pid for q in self.scheduler.list_queues().values() for pcb in q]
         for pid in pids:
-            self.close_process(pid)
-            
+            self.process_manager.terminate_process(pid)
+            self.memory.deallocate(pid)
+        self.refresh()
+
 if __name__ == "__main__":
     app = OSVisualizer()
     app.mainloop()
