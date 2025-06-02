@@ -9,20 +9,27 @@ from process.manager import ProcessManager
 from memory.memory_manager import MemoryManager
 from filesystem.mobile_fs import FileSystem
 
+from concurrency.background_tasks import CameraTask, MusicTask, SchedulerTask
 
 class OSVisualizer(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Mini Mobile OS - Single User")
-        self.geometry("700x500")
+        self.geometry("1080x600")
 
         self.scheduler = Scheduler()
         self.process_manager = ProcessManager(self.scheduler)
         self.memory = MemoryManager(size=50)
         self.fs = FileSystem()
 
+        self.bg_camera = CameraTask(self.fs)
+        self.bg_music = MusicTask(self.memory, pid=99)
+        self.bg_scheduler = SchedulerTask(self.scheduler)
+
         self.setup_ui()
         self.refresh()
+
+
 
     def setup_ui(self):
         self.info_frame = ttk.LabelFrame(self, text="System State")
@@ -50,6 +57,8 @@ class OSVisualizer(tk.Tk):
         ttk.Button(self.control_frame, text="Launch Music", command=self.launch_music).pack(side="left", padx=3)
         ttk.Button(self.control_frame, text="Close Camera", command=lambda: self.close_process_by_name("Camera")).pack(side="left", padx=3)
         ttk.Button(self.control_frame, text="Close Music", command=lambda: self.close_process_by_name("Music")).pack(side="left", padx=3)
+        ttk.Button(self.control_frame, text="Start Background Tasks", command=self.start_background_tasks).pack(side="left", padx=3)
+        ttk.Button(self.control_frame, text="Stop Tasks", command=self.stop_background_tasks).pack(side="left", padx=3)
         ttk.Button(self.control_frame, text="Close All", command=self.close_all_processes).pack(side="left", padx=3)
         ttk.Button(self.control_frame, text="X", command=self.quit).pack(side="left", padx=1)
 
@@ -71,6 +80,8 @@ class OSVisualizer(tk.Tk):
         self.update_process_display()
         self.update_memory_display()
         self.update_file_display()
+
+        self.after(1000, self.refresh)
 
     def update_process_display(self):
         self.process_text.delete("1.0", tk.END)
@@ -112,6 +123,21 @@ class OSVisualizer(tk.Tk):
             self.memory.deallocate(pid)
         self.refresh()
 
+    def start_background_tasks(self):
+        print("[Main] Arka plan görevleri başlatılıyor...")
+        self.bg_camera.start()
+        self.bg_music.start()
+        self.bg_scheduler.start()
+
+    def stop_background_tasks(self):
+        print("[Main] Arka plan görevleri durduruluyor...")
+        self.bg_camera.stop()
+        self.bg_music.stop()
+        self.bg_scheduler.stop()
+>>>>>>> 3f23cc2 (Add concurrency features and background task buttons to visualizer UI)
+
 if __name__ == "__main__":
     app = OSVisualizer()
     app.mainloop()
+
+

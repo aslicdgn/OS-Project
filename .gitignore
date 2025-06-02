@@ -1,0 +1,14 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Sanal ortam
+venv/
+
+# Sistem dosyaları
+.DS_Store
+
+# Log ve config
+*.log
+*.env
+*.egg-info/
