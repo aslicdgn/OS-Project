@@ -134,7 +134,6 @@ class OSVisualizer(tk.Tk):
         self.bg_camera.stop()
         self.bg_music.stop()
         self.bg_scheduler.stop()
->>>>>>> 3f23cc2 (Add concurrency features and background task buttons to visualizer UI)
 
 if __name__ == "__main__":
     app = OSVisualizer()
