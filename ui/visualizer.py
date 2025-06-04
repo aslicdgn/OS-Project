@@ -22,7 +22,7 @@ class OSVisualizer(tk.Tk):
         self.memory = MemoryManager(size=50)
         self.fs = FileSystem()
 
-        self.bg_camera = CameraTask(self.fs)
+        self.bg_camera = CameraTask(self.fs, log_fn=self.log_message)
         self.bg_music = MusicTask(self.memory, pid=99)
         self.bg_scheduler = SchedulerTask(self.scheduler)
 
