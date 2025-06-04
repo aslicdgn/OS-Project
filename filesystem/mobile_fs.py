@@ -20,7 +20,7 @@ class Directory:
         self.created_at = time.ctime()
 
     def create_file(self, name, content=""):
-        self.current_directory.files[name] = File(name, content)
+        self.files[name] = File(name, content)
 
     def create_subdirectory(self, dir_name):
         if dir_name not in self.subdirectories:

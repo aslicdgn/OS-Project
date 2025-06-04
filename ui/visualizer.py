@@ -144,14 +144,16 @@ class OSVisualizer(tk.Tk):
         app = PCB(pid=1, app_name="Camera", state="READY", priority=1)
         self.scheduler.add_process(app)
         self.memory.allocate(app.pid, 5)
-        self.fs.create_file("photo1.jpg", content="binarydata...")
+        self.fs.create_file("photo1.jpg")
+        self.fs.write_file("photo1.jpg", "binarydata...")
         self.refresh()
 
     def launch_music(self):
         app = PCB(pid=2, app_name="Music", state="READY", priority=0)
         self.scheduler.add_process(app)
         self.memory.allocate(app.pid, 3)
-        self.fs.create_file("song.mp3", content="musicdata...")
+        self.fs.create_file("song.mp3")
+        self.fs.write_file("song.mp3", "musicdata...")
         self.refresh()
 
     def log_message(self, message):
