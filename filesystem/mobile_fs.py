@@ -46,8 +46,8 @@ class FileSystem:
             print("Directory not found.")
         self.current_directory = self.path_stack[-1]
 
-    def create_file(self, name):
-        self.current_directory.create_file(name)
+    def create_file(self, name, content=""):
+        self.current_directory.create_file(name, content)
 
     def write_file(self, name, content):
         if name not in self.current_directory.files:
