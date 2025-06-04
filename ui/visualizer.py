@@ -66,14 +66,14 @@ class OSVisualizer(tk.Tk):
         app = PCB(pid=1, app_name="Camera", state="READY", priority=1)
         self.scheduler.add_process(app)
         self.memory.allocate(app.pid, 5)
-        self.fs.create_file("photo1.jpg", "binarydata...")
+        self.fs.create_file("photo1.jpg", content="binarydata...")
         self.refresh()
 
     def launch_music(self):
         app = PCB(pid=2, app_name="Music", state="READY", priority=0)
         self.scheduler.add_process(app)
         self.memory.allocate(app.pid, 3)
-        self.fs.create_file("song.mp3", "musicdata...")
+        self.fs.create_file("song.mp3", content="musicdata...")
         self.refresh()
 
     def refresh(self):
@@ -103,7 +103,10 @@ class OSVisualizer(tk.Tk):
 
     def update_file_display(self):
         self.file_text.delete("1.0", tk.END)
-        self.file_text.insert(tk.END, f"Files: {', '.join(self.fs.list_files())}\n")
+        files = self.fs.list_files()
+        self.file_text.insert(tk.END, "Files:\n")
+        for f in files:
+            self.file_text.insert(tk.END, f"  {f}\n")
         
     def close_process_by_name(self, app_name):
         queues = self.scheduler.list_queues()
