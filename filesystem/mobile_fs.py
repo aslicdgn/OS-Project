@@ -1,4 +1,6 @@
 import time
+import threading
+
 
 class File:
     def __init__(self, name, content=""):
@@ -32,66 +34,73 @@ class FileSystem:
         self.root = Directory("root")
         self.current_directory = self.root
         self.path_stack = [self.root]
+        self.lock = threading.Lock()
 
     def mkdir(self, name):
-        self.current_directory.create_subdirectory(name)
+        with self.lock:
+            self.current_directory.create_subdirectory(name)
 
     def cd(self, name):
-        if name == "..":
-            if len(self.path_stack) > 1:
-                self.path_stack.pop()
-        elif name in self.current_directory.subdirectories:
-            self.path_stack.append(self.current_directory.subdirectories[name])
-        else:
-            print("Directory not found.")
-        self.current_directory = self.path_stack[-1]
+        with self.lock:
+            if name == "..":
+                if len(self.path_stack) > 1:
+                    self.path_stack.pop()
+            elif name in self.current_directory.subdirectories:
+                self.path_stack.append(self.current_directory.subdirectories[name])
+            else:
+                print("Directory not found.")
+            self.current_directory = self.path_stack[-1]
 
     def create_file(self, name, content=""):
-        self.current_directory.create_file(name, content)
+        with self.lock:
+            self.current_directory.create_file(name, content)
 
     def write_file(self, name, content):
-        if name not in self.current_directory.files:
-            self.create_file(name, content)
-        else:
-            self.current_directory.files[name].write(content)
+        with self.lock:
+            if name not in self.current_directory.files:
+                self.create_file(name, content)
+            else:
+                self.current_directory.files[name].write(content)
 
     def read_file(self, name):
-        file = self.current_directory.files.get(name)
-        if file:
-            return file.content
-        else:
-            return "File not found."
+        with self.lock:
+            file = self.current_directory.files.get(name)
+            if file:
+                return file.content
+            else:
+                return "File not found."
 
     def ls(self):
-        dirs = list(self.current_directory.subdirectories.keys())
-        files = list(self.current_directory.files.keys())
-        return dirs, files
-    
+        with self.lock:
+            dirs = list(self.current_directory.subdirectories.keys())
+            files = list(self.current_directory.files.keys())
+            return dirs, files
+
     def list_files(self):
-        return [f"{f.name} ({f.size} bytes)" for f in self.current_directory.files.values()]
+        with self.lock:
+            return [f"{f.name} ({f.size} bytes)" for f in self.current_directory.files.values()]
 
     def find(self, name, directory=None, path="root"):
-        if directory is None:
-            directory = self.root
-        results = []
-        # Dosya varsa
-        if name in directory.files:
-            results.append(f"{path}/{name} (file)")
-        # Klasör varsa
-        if name in directory.subdirectories:
-            results.append(f"{path}/{name} (directory)")
-        # Rekürsif ara
-        for sub_name, sub_dir in directory.subdirectories.items():
-            results.extend(self.find(name, sub_dir, f"{path}/{sub_name}"))
-        return results
+        with self.lock:
+            if directory is None:
+                directory = self.root
+            results = []
+            if name in directory.files:
+                results.append(f"{path}/{name} (file)")
+            if name in directory.subdirectories:
+                results.append(f"{path}/{name} (directory)")
+            for sub_name, sub_dir in directory.subdirectories.items():
+                results.extend(self.find(name, sub_dir, f"{path}/{sub_name}"))
+            return results
 
     def file_info(self, name):
-        file = self.current_directory.files.get(name)
-        if file:
-            return {
-                "name": file.name,
-                "size": file.size,
-                "created_at": file.created_at
-            }
-        else:
-            return "File not found."
+        with self.lock:
+            file = self.current_directory.files.get(name)
+            if file:
+                return {
+                    "name": file.name,
+                    "size": file.size,
+                    "created_at": file.created_at
+                }
+            else:
+                return "File not found."
