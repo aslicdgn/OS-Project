@@ -9,7 +9,7 @@ from process.manager import ProcessManager
 from memory.memory_manager import MemoryManager
 from filesystem.mobile_fs import FileSystem
 
-from concurrency.background_tasks import CameraTask, MusicTask, SchedulerTask
+from concurrency.background_tasks import CameraTask, MusicTask, SchedulerTask, PhotoConsumer
 
 class OSVisualizer(tk.Tk):
     def __init__(self):
@@ -25,119 +25,134 @@ class OSVisualizer(tk.Tk):
         self.bg_camera = CameraTask(self.fs, log_fn=self.log_message)
         self.bg_music = MusicTask(self.memory, pid=99)
         self.bg_scheduler = SchedulerTask(self.scheduler)
+        self.bg_consumer = PhotoConsumer(log_fn=self.log_message, update_fn=self.increment_processed_count)
+
 
         self.setup_ui()
         self.refresh()
 
+        self.processed_count = 0
+
+    def increment_processed_count(self):
+        self.processed_count += 1
+        self.processed_label.config(text=f"Processed Photos: {self.processed_count}")
 
 
     def setup_ui(self):
         # Status Bar
         self.status_frame = ttk.Frame(self)
         self.status_frame.pack(fill="x", padx=10, pady=(10, 0))
-        
+
         # Background tasks status
-        self.bg_status = ttk.Label(self.status_frame, text="Background Tasks: Stopped", 
+        self.bg_status = ttk.Label(self.status_frame, text="Background Tasks: Stopped",
                                  foreground="red", relief="sunken", padding=5)
         self.bg_status.pack(side="left", padx=2)
-        
+
         # Memory status
-        self.mem_status = ttk.Label(self.status_frame, text="Memory: 0/0 KB", 
+        self.mem_status = ttk.Label(self.status_frame, text="Memory: 0/0 KB",
                                   relief="sunken", padding=5)
         self.mem_status.pack(side="left", padx=2)
-        
+
         # Process count
-        self.proc_status = ttk.Label(self.status_frame, text="Processes: 0", 
+        self.proc_status = ttk.Label(self.status_frame, text="Processes: 0",
                                    relief="sunken", padding=5)
         self.proc_status.pack(side="left", padx=2)
-        
+
         # System time
-        self.time_status = ttk.Label(self.status_frame, text="System Time: 00:00:00", 
+        self.time_status = ttk.Label(self.status_frame, text="System Time: 00:00:00",
                                    relief="sunken", padding=5)
         self.time_status.pack(side="right", padx=2)
-        
+
         # System State Frame
         self.info_frame = ttk.LabelFrame(self, text="System State")
         self.info_frame.pack(fill="both", expand=True, padx=10, pady=5)
-        
+
         # Process and Memory Panels
         top_panel = ttk.Frame(self.info_frame)
         top_panel.pack(fill="both", expand=True)
-        
+
         # Process Panel
         proc_frame = ttk.LabelFrame(top_panel, text="Processes")
         proc_frame.pack(side="left", fill="both", expand=True, padx=5, pady=5)
-        
+
         self.process_text = tk.Text(proc_frame, height=10, width=50)
         self.process_text.pack(fill="both", expand=True, padx=5, pady=5)
-        
+
         # Memory Panel
         mem_frame = ttk.LabelFrame(top_panel, text="Memory")
         mem_frame.pack(side="right", fill="both", expand=True, padx=5, pady=5)
-        
+
         # Memory visualization
         self.memory_canvas = tk.Canvas(mem_frame, height=150, bg='white')
         self.memory_canvas.pack(fill="both", expand=True, padx=5, pady=5)
-        
+
         # Memory stats
         self.mem_stats = ttk.Label(mem_frame, text="Total: 0 KB | Used: 0 KB | Free: 0 KB")
         self.mem_stats.pack(fill="x", padx=5, pady=(0, 5))
-        
+
         # File System and Logs
         bottom_panel = ttk.Frame(self.info_frame)
         bottom_panel.pack(fill="both", expand=True)
-        
+
         # File System Panel
         fs_frame = ttk.LabelFrame(bottom_panel, text="File System")
         fs_frame.pack(side="left", fill="both", expand=True, padx=5, pady=5)
-        
+
         self.file_text = tk.Text(fs_frame, height=8, width=50)
         self.file_text.pack(fill="both", expand=True, padx=5, pady=5)
-        
+
+
         # System Log Panel
         log_frame = ttk.LabelFrame(bottom_panel, text="System Log")
         log_frame.pack(side="right", fill="both", expand=True, padx=5, pady=5)
-        
-        self.log_text = tk.Text(log_frame, height=8, width=50, state='disabled', 
+
+
+        self.processed_label = ttk.Label(log_frame, text="Processed Photos: 0")
+        self.processed_label.pack(anchor="w", padx=5, pady=(0, 2))
+
+        self.log_text = tk.Text(log_frame, height=8, width=50, state='disabled',
                                bg='black', fg='lightgray')
         self.log_text.pack(fill="both", expand=True, padx=5, pady=5)
-        
+
         # Controls Frame
         self.control_frame = ttk.LabelFrame(self, text="Controls")
         self.control_frame.pack(fill="x", padx=10, pady=5)
 
         # Application control buttons
         ttk.Label(self.control_frame, text="Applications:").pack(side="left", padx=(0, 5))
-        ttk.Button(self.control_frame, text="Launch Camera", 
+        ttk.Button(self.control_frame, text="Launch Camera",
                  command=self.launch_camera).pack(side="left", padx=2)
-        ttk.Button(self.control_frame, text="Launch Music", 
+        ttk.Button(self.control_frame, text="Launch Music",
                  command=self.launch_music).pack(side="left", padx=2)
-        
+
         # Separator
         ttk.Separator(self.control_frame, orient='vertical').pack(side='left', padx=5, fill='y')
-        
+
         # Process control buttons
         ttk.Label(self.control_frame, text="Process Control:").pack(side="left", padx=5)
-        ttk.Button(self.control_frame, text="Close Camera", 
+        ttk.Button(self.control_frame, text="Close Camera",
                  command=lambda: self.close_process_by_name("Camera")).pack(side="left", padx=2)
-        ttk.Button(self.control_frame, text="Close Music", 
+        ttk.Button(self.control_frame, text="Close Music",
                  command=lambda: self.close_process_by_name("Music")).pack(side="left", padx=2)
-        ttk.Button(self.control_frame, text="Close All", 
+        ttk.Button(self.control_frame, text="Close All",
                  command=self.close_all_processes).pack(side="left", padx=2)
-        
+
         # Separator
         ttk.Separator(self.control_frame, orient='vertical').pack(side='left', padx=5, fill='y')
-        
+
         # Background tasks
         ttk.Label(self.control_frame, text="Tasks:").pack(side="left", padx=5)
-        ttk.Button(self.control_frame, text="Start Background Tasks", 
+        ttk.Button(self.control_frame, text="Start Background Tasks",
                  command=self.start_background_tasks).pack(side="left", padx=2)
-        ttk.Button(self.control_frame, text="Stop Tasks", 
+        ttk.Button(self.control_frame, text="Start Photo Simulation",
+           command=self.start_photo_simulation).pack(side="left", padx=2)
+
+        ttk.Button(self.control_frame, text="Stop Tasks",
                  command=self.stop_background_tasks).pack(side="left", padx=2)
-        
+
         # Exit button with more padding
         ttk.Separator(self.control_frame, orient='vertical').pack(side='left', padx=5, fill='y')
-        ttk.Button(self.control_frame, text="X", 
+        ttk.Button(self.control_frame, text="X",
                  command=self.quit, width=3).pack(side="right", padx=(10, 0))
 
     def launch_camera(self):
@@ -267,16 +282,42 @@ class OSVisualizer(tk.Tk):
         self.log_message("Starting background tasks...")
         try:
             if not hasattr(self.bg_camera, 'is_alive') or not self.bg_camera.is_alive():
+                self.bg_camera = CameraTask(self.fs, log_fn=self.log_message)
                 self.bg_camera.start()
                 self.log_message("Camera task started")
             if not hasattr(self.bg_music, 'is_alive') or not self.bg_music.is_alive():
+                self.bg_music = MusicTask(self.memory, pid=99)
                 self.bg_music.start()
                 self.log_message("Music task started")
             if not hasattr(self.bg_scheduler, 'is_alive') or not self.bg_scheduler.is_alive():
+                self.bg_scheduler = SchedulerTask(self.scheduler)
                 self.bg_scheduler.start()
                 self.log_message("Scheduler task started")
+            if not hasattr(self.bg_consumer, 'is_alive') or not self.bg_consumer.is_alive():
+                self.bg_consumer = PhotoConsumer(log_fn=self.log_message, update_fn=self.increment_processed_count)
+                self.bg_consumer.start()
+                self.log_message("PhotoConsumer task started")
+
         except Exception as e:
             self.log_message(f"Error starting background tasks: {str(e)}")
+
+    def start_photo_simulation(self):
+        self.log_message("Starting photo simulation...")
+
+        try:
+            if not hasattr(self.bg_camera, 'is_alive') or not self.bg_camera.is_alive():
+                self.bg_camera = CameraTask(self.fs, log_fn=self.log_message)
+                self.bg_camera.start()
+                self.log_message("Camera task started (simulation)")
+
+            if not hasattr(self.bg_consumer, 'is_alive') or not self.bg_consumer.is_alive():
+                self.bg_consumer = PhotoConsumer(log_fn=self.log_message, update_fn=self.increment_processed_count)
+                self.bg_consumer.start()
+                self.log_message("PhotoConsumer task started (simulation)")
+
+        except Exception as e:
+            self.log_message(f"Error in photo simulation start: {str(e)}")
+
 
     def stop_background_tasks(self):
         self.log_message("Stopping background tasks...")
@@ -284,6 +325,7 @@ class OSVisualizer(tk.Tk):
             self.bg_camera.stop()
             self.bg_music.stop()
             self.bg_scheduler.stop()
+            self.bg_consumer.stop()
             self.log_message("All background tasks stopped")
         except Exception as e:
             self.log_message(f"Error stopping background tasks: {str(e)}")
