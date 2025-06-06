@@ -8,14 +8,19 @@ from process.scheduler import Scheduler
 from process.manager import ProcessManager
 from memory.memory_manager import MemoryManager
 from filesystem.mobile_fs import FileSystem
-
 from concurrency.background_tasks import CameraTask, MusicTask, SchedulerTask, PhotoConsumer
+
+from ui.themes import get_light_theme, get_dark_theme
+from ui.icons import ICONS
 
 class OSVisualizer(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Mini Mobile OS - Single User")
         self.geometry("1080x600")
+
+        self.theme = 'light'
+        self.theme_colors = get_light_theme()
 
         self.scheduler = Scheduler()
         self.process_manager = ProcessManager(self.scheduler)
@@ -27,11 +32,46 @@ class OSVisualizer(tk.Tk):
         self.bg_scheduler = SchedulerTask(self.scheduler)
         self.bg_consumer = PhotoConsumer(log_fn=self.log_message, update_fn=self.increment_processed_count)
 
-
         self.setup_ui()
         self.refresh()
 
         self.processed_count = 0
+
+    def switch_theme(self):
+        if self.theme == 'light':
+            self.theme = 'dark'
+            self.theme_colors = get_dark_theme()
+        else:
+            self.theme = 'light'
+            self.theme_colors = get_light_theme()
+        self.apply_theme()
+
+    def apply_theme(self):
+        c = self.theme_colors
+        self.configure(bg=c['bg'])
+        # ttk için stil tanımla
+        style = ttk.Style()
+        style.theme_use('clam')
+        style.configure('Status.TFrame', background=c['status_bg'])
+        style.configure('Status.TLabel', background=c['status_bg'], foreground=c['status_fg'])
+        style.configure('TLabel', background=c['bg'], foreground=c['fg'])
+        style.configure('TButton', background=c['bg'], foreground=c['fg'])
+        style.configure('TLabelframe', background=c['bg'], foreground=c['fg'])
+        style.configure('TLabelframe.Label', background=c['bg'], foreground=c['fg'])
+        # Klasik tk widget'larda doğrudan renk uygula
+        if hasattr(self, 'info_frame'):
+            self.info_frame.configure(bg=c['bg'])
+        if hasattr(self, 'process_text'):
+            self.process_text.configure(bg=c['bg'], fg=c['fg'])
+        if hasattr(self, 'memory_canvas'):
+            self.memory_canvas.configure(bg=c['bg'])
+        if hasattr(self, 'file_text'):
+            self.file_text.configure(bg=c['bg'], fg=c['fg'])
+        if hasattr(self, 'log_text'):
+            self.log_text.configure(bg='#222' if self.theme=='dark' else 'black', fg=c['fg'])
+        # Tema düğmesi ikonu
+        if hasattr(self, 'theme_btn'):
+            self.theme_btn.configure(text=ICONS['theme_dark'] if self.theme=='dark' else ICONS['theme_light'])
 
     def increment_processed_count(self):
         self.processed_count += 1
@@ -43,22 +83,32 @@ class OSVisualizer(tk.Tk):
         self.status_frame = ttk.Frame(self)
         self.status_frame.pack(fill="x", padx=10, pady=(10, 0))
 
-        # Background tasks status
-        self.bg_status = ttk.Label(self.status_frame, text="Background Tasks: Stopped",
+        # Modern ikonlu status bar
+        self.clock_icon = ttk.Label(self.status_frame, text=ICONS['clock'])
+        self.clock_icon.pack(side="left", padx=(2,0))
+        self.bg_status = ttk.Label(self.status_frame, text=f"{ICONS['process']} Background Tasks: Stopped",
                                  foreground="red", relief="sunken", padding=5)
         self.bg_status.pack(side="left", padx=2)
-
-        # Memory status
-        self.mem_status = ttk.Label(self.status_frame, text="Memory: 0/0 KB",
+        self.mem_status = ttk.Label(self.status_frame, text=f"{ICONS['memory']} Memory: 0/0 KB",
                                   relief="sunken", padding=5)
         self.mem_status.pack(side="left", padx=2)
-
-        # Process count
-        self.proc_status = ttk.Label(self.status_frame, text="Processes: 0",
+        self.proc_status = ttk.Label(self.status_frame, text=f"{ICONS['process']} Processes: 0",
                                    relief="sunken", padding=5)
         self.proc_status.pack(side="left", padx=2)
+        self.network_icon = ttk.Label(self.status_frame, text=ICONS['network'])
+        self.network_icon.pack(side="right", padx=(0,2))
+        self.battery_icon = ttk.Label(self.status_frame, text=ICONS['battery'])
+        self.battery_icon.pack(side="right", padx=(0,2))
+        # Tema değiştirme butonu
+        self.theme_btn = ttk.Button(self.status_frame, text=ICONS['theme_light'], width=3, command=self.switch_theme)
+        self.theme_btn.pack(side="right", padx=(0,2))
+        # Saat
+        self.time_status = ttk.Label(self.status_frame, text="System Time: 00:00:00",
+                                   relief="sunken", padding=5)
+        self.time_status.pack(side="right", padx=2)
+        # Tüm widgetlar oluşturulduktan sonra tema uygula
+        self.apply_theme()
 
-        # System time
         self.time_status = ttk.Label(self.status_frame, text="System Time: 00:00:00",
                                    relief="sunken", padding=5)
         self.time_status.pack(side="right", padx=2)
