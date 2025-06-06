@@ -36,6 +36,28 @@ class FileSystem:
         self.path_stack = [self.root]
         self.lock = threading.Lock()
 
+    def get_tree_structure(self, directory=None):
+        # Döndürülen yapı: { 'type': 'dir'/'file', 'name': ..., 'children': [...] }
+        with self.lock:
+            if directory is None:
+                directory = self.root  # Kökten başlat, current_directory değil!
+            result = {
+                'type': 'dir',
+                'name': directory.name,
+                'children': []
+            }
+            # Önce klasörler
+            for subdir in directory.subdirectories.values():
+                result['children'].append(self.get_tree_structure(subdir))
+            # Sonra dosyalar
+            for file in directory.files.values():
+                result['children'].append({
+                    'type': 'file',
+                    'name': file.name,
+                    'size': file.size
+                })
+            return result
+
     def mkdir(self, name):
         with self.lock:
             self.current_directory.create_subdirectory(name)
@@ -94,6 +116,7 @@ class FileSystem:
             return results
 
     def file_info(self, name):
+        """Return info about a file in the current directory by name."""
         with self.lock:
             file = self.current_directory.files.get(name)
             if file:
@@ -104,3 +127,17 @@ class FileSystem:
                 }
             else:
                 return "File not found."
+
+    def dir_info(self, name):
+        """Return info about a subdirectory in the current directory by name."""
+        with self.lock:
+            directory = self.current_directory.subdirectories.get(name)
+            if directory:
+                return {
+                    "name": directory.name,
+                    "created_at": directory.created_at,
+                    "folders": len(directory.subdirectories),
+                    "files": len(directory.files)
+                }
+            else:
+                return "Directory not found."

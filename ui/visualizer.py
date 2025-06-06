@@ -58,9 +58,12 @@ class OSVisualizer(tk.Tk):
         style.configure('TButton', background=c['bg'], foreground=c['fg'])
         style.configure('TLabelframe', background=c['bg'], foreground=c['fg'])
         style.configure('TLabelframe.Label', background=c['bg'], foreground=c['fg'])
-        # Klasik tk widget'larda doğrudan renk uygula
+        style.configure('Info.TLabelframe', background=c['bg'], foreground=c['fg'])
+        style.configure('Info.TLabelframe.Label', background=c['bg'], foreground=c['fg'])
+        # ttk tabanlı widget'larda stil uygula
         if hasattr(self, 'info_frame'):
-            self.info_frame.configure(bg=c['bg'])
+            self.info_frame.configure(style='Info.TLabelframe')
+        # Klasik tk widget'larda doğrudan renk uygula
         if hasattr(self, 'process_text'):
             self.process_text.configure(bg=c['bg'], fg=c['fg'])
         if hasattr(self, 'memory_canvas'):
@@ -78,36 +81,55 @@ class OSVisualizer(tk.Tk):
         self.processed_label.config(text=f"Processed Photos: {self.processed_count}")
 
 
+    def fs_go_back(self):
+        if len(self.fs.path_stack) > 1:
+            self.fs.cd("..")
+            self.update_file_display()
+
+    def fs_open_selected(self):
+        selected = self.fs_tree.selection()
+        if not selected:
+            return
+        item_text = self.fs_tree.item(selected[0], 'text')
+        # Sadece klasörse aç
+        if item_text.startswith('📁 '):
+            folder_name = item_text[2:].strip()
+            self.fs.cd(folder_name)
+            self.update_file_display()
+
     def setup_ui(self):
         # Status Bar
         self.status_frame = ttk.Frame(self)
         self.status_frame.pack(fill="x", padx=10, pady=(10, 0))
 
-        # Modern ikonlu status bar
-        self.clock_icon = ttk.Label(self.status_frame, text=ICONS['clock'])
+        # Modern ikonlu status bar - büyük, renkli ve bold
+        status_font = ("Segoe UI", 12, "bold")
+        icon_font = ("Segoe UI Emoji", 16, "bold")
+        self.clock_icon = ttk.Label(self.status_frame, text=ICONS['clock'], font=icon_font, foreground="#1976d2")
         self.clock_icon.pack(side="left", padx=(2,0))
         self.bg_status = ttk.Label(self.status_frame, text=f"{ICONS['process']} Background Tasks: Stopped",
-                                 foreground="red", relief="sunken", padding=5)
+                                 foreground="#d32f2f", font=status_font, relief="sunken", padding=5)
         self.bg_status.pack(side="left", padx=2)
         self.mem_status = ttk.Label(self.status_frame, text=f"{ICONS['memory']} Memory: 0/0 KB",
-                                  relief="sunken", padding=5)
+                                  font=status_font, relief="sunken", padding=5, foreground="#388e3c")
         self.mem_status.pack(side="left", padx=2)
         self.proc_status = ttk.Label(self.status_frame, text=f"{ICONS['process']} Processes: 0",
-                                   relief="sunken", padding=5)
+                                   font=status_font, relief="sunken", padding=5, foreground="#1976d2")
         self.proc_status.pack(side="left", padx=2)
-        self.network_icon = ttk.Label(self.status_frame, text=ICONS['network'])
+        self.network_icon = ttk.Label(self.status_frame, text=ICONS['network'], font=icon_font, foreground="#0288d1")
         self.network_icon.pack(side="right", padx=(0,2))
-        self.battery_icon = ttk.Label(self.status_frame, text=ICONS['battery'])
+        self.battery_icon = ttk.Label(self.status_frame, text=ICONS['battery'], font=icon_font, foreground="#fbc02d")
         self.battery_icon.pack(side="right", padx=(0,2))
         # Tema değiştirme butonu
         self.theme_btn = ttk.Button(self.status_frame, text=ICONS['theme_light'], width=3, command=self.switch_theme)
         self.theme_btn.pack(side="right", padx=(0,2))
         # Saat
         self.time_status = ttk.Label(self.status_frame, text="System Time: 00:00:00",
-                                   relief="sunken", padding=5)
+                                   font=status_font, relief="sunken", padding=5, foreground="#1976d2")
         self.time_status.pack(side="right", padx=2)
         # Tüm widgetlar oluşturulduktan sonra tema uygula
         self.apply_theme()
+
 
         self.time_status = ttk.Label(self.status_frame, text="System Time: 00:00:00",
                                    relief="sunken", padding=5)
@@ -148,9 +170,84 @@ class OSVisualizer(tk.Tk):
         fs_frame = ttk.LabelFrame(bottom_panel, text="File System")
         fs_frame.pack(side="left", fill="both", expand=True, padx=5, pady=5)
 
-        self.file_text = tk.Text(fs_frame, height=8, width=50)
-        self.file_text.pack(fill="both", expand=True, padx=5, pady=5)
-
+        # Dosya gezgini (Treeview)
+        # Modern scrollbar için style
+        style = ttk.Style()
+        style.configure('Modern.Vertical.TScrollbar', gripcount=0, background='#b0bec5', troughcolor='#eceff1', bordercolor='#90a4ae', lightcolor='#eceff1', darkcolor='#90a4ae', arrowcolor='#1976d2')
+        # Dosya gezgini (Treeview) ve scrollbar
+        self.fs_tree = ttk.Treeview(fs_frame, columns=("type",), show="tree")
+        vsb = ttk.Scrollbar(fs_frame, orient="vertical", command=self.fs_tree.yview, style='Modern.Vertical.TScrollbar')
+        self.fs_tree.configure(yscrollcommand=vsb.set)
+        self.fs_tree.pack(side="left", fill="both", expand=True, padx=2, pady=2)
+        vsb.pack(side="left", fill="y")
+        self.fs_tree.bind("<<TreeviewSelect>>", self.on_fs_select)
+        # Dosya gezgini üstünde yol etiketi ve gezinme butonları
+        nav_frame = ttk.Frame(fs_frame)
+        nav_frame.pack(side="top", fill="x", pady=(2,0))
+        self.fs_path_label = ttk.Label(nav_frame, text="/", font=("Segoe UI", 9, "italic"))
+        self.fs_path_label.pack(side="left", padx=4)
+        # Search box
+        ttk.Label(nav_frame, text="🔍 Search:").pack(side="left", padx=(10,2))
+        self.fs_search_var = tk.StringVar()
+        fs_search_entry = ttk.Entry(nav_frame, textvariable=self.fs_search_var, width=16)
+        fs_search_entry.pack(side="left", padx=(0,4))
+        self.fs_search_var.trace_add('write', lambda *args: self.update_file_display())
+        back_btn = ttk.Button(nav_frame, text="⬅️ Back", command=self.fs_go_back, style="Modern.TButton")
+        back_btn.pack(side="right", padx=2)
+        open_btn = ttk.Button(nav_frame, text="📂 Open", command=self.fs_open_selected, style="Modern.TButton")
+        open_btn.pack(side="right", padx=2)
+        new_folder_btn = ttk.Button(nav_frame, text="📁 New Folder", command=self.create_folder_popup, style="Modern.TButton")
+        new_folder_btn.pack(side="right", padx=2)
+        self._add_tooltip(new_folder_btn, "Create new folder")
+        self._add_tooltip(open_btn, "Open selected folder")
+        self._add_tooltip(back_btn, "Go to parent directory")
+        # Dosya içeriği/detayı gösteren alan ve scrollbar
+        self.fs_detail = tk.Text(fs_frame, height=8, width=30, state='disabled')
+        log_vsb = ttk.Scrollbar(fs_frame, orient="vertical", command=self.fs_detail.yview, style='Modern.Vertical.TScrollbar')
+        self.fs_detail.configure(yscrollcommand=log_vsb.set)
+        self.fs_detail.pack(side="right", fill="both", expand=False, padx=2, pady=2)
+        log_vsb.pack(side="right", fill="y")
+        # Dosya işlemleri için butonlar (modern ve tooltip'li)
+        btn_frame = ttk.Frame(fs_frame)
+        btn_frame.pack(side="bottom", fill="x", pady=2)
+        style = ttk.Style()
+        style.configure("Modern.TButton", font=("Segoe UI", 10, "bold"), padding=6, foreground="#222", background="#e0e0e0", borderwidth=0, focusthickness=3, focuscolor="#aaa")
+        style.map("Modern.TButton",
+                  background=[('active', '#b3e5fc'), ('!active', '#e0e0e0')],
+                  relief=[('pressed', 'sunken'), ('!pressed', 'raised')])
+        style.configure('Hovered.TButton', background='#b3e5fc', foreground="#1976d2", font=("Segoe UI", 10, "bold"))
+        new_file_btn = ttk.Button(btn_frame, text="➕ New File", command=self.create_file_popup, style="Modern.TButton")
+        new_file_btn.pack(side="left", padx=2)
+        del_file_btn = ttk.Button(btn_frame, text="🗑️ Delete", command=self.delete_selected_file, style="Modern.TButton")
+        del_file_btn.pack(side="left", padx=2)
+        self._add_tooltip(new_file_btn, "Create new file")
+        self._add_tooltip(del_file_btn, "Delete selected file")
+        # Hover efekti için event binding
+        def hover_on(e, btn): btn.configure(style='Hovered.TButton')
+        def hover_off(e, btn): btn.configure(style='Modern.TButton')
+        new_file_btn.bind('<Enter>', lambda e: hover_on(e, new_file_btn))
+        new_file_btn.bind('<Leave>', lambda e: hover_off(e, new_file_btn))
+        del_file_btn.bind('<Enter>', lambda e: hover_on(e, del_file_btn))
+        del_file_btn.bind('<Leave>', lambda e: hover_off(e, del_file_btn))
+        new_folder_btn.bind('<Enter>', lambda e: hover_on(e, new_folder_btn))
+        new_folder_btn.bind('<Leave>', lambda e: hover_off(e, new_folder_btn))
+        open_btn.bind('<Enter>', lambda e: hover_on(e, open_btn))
+        open_btn.bind('<Leave>', lambda e: hover_off(e, open_btn))
+        back_btn.bind('<Enter>', lambda e: hover_on(e, back_btn))
+        back_btn.bind('<Leave>', lambda e: hover_off(e, back_btn))
+        # Dosya gezgini satır hover efekti
+        def on_tree_motion(event):
+            row = self.fs_tree.identify_row(event.y)
+            for iid in self.fs_tree.get_children():
+                self.fs_tree.item(iid, tags=())
+            if row:
+                self.fs_tree.tag_configure('hover', background='#e3f2fd')
+                self.fs_tree.item(row, tags=('hover',))
+        def on_tree_leave(event):
+            for iid in self.fs_tree.get_children():
+                self.fs_tree.item(iid, tags=())
+        self.fs_tree.bind('<Motion>', on_tree_motion)
+        self.fs_tree.bind('<Leave>', on_tree_leave)
 
         # System Log Panel
         log_frame = ttk.LabelFrame(bottom_panel, text="System Log")
@@ -167,43 +264,58 @@ class OSVisualizer(tk.Tk):
         # Controls Frame
         self.control_frame = ttk.LabelFrame(self, text="Controls")
         self.control_frame.pack(fill="x", padx=10, pady=5)
-
-        # Application control buttons
-        ttk.Label(self.control_frame, text="Applications:").pack(side="left", padx=(0, 5))
-        ttk.Button(self.control_frame, text="Launch Camera",
-                 command=self.launch_camera).pack(side="left", padx=2)
-        ttk.Button(self.control_frame, text="Launch Music",
-                 command=self.launch_music).pack(side="left", padx=2)
-
-        # Separator
-        ttk.Separator(self.control_frame, orient='vertical').pack(side='left', padx=5, fill='y')
-
-        # Process control buttons
-        ttk.Label(self.control_frame, text="Process Control:").pack(side="left", padx=5)
-        ttk.Button(self.control_frame, text="Close Camera",
-                 command=lambda: self.close_process_by_name("Camera")).pack(side="left", padx=2)
-        ttk.Button(self.control_frame, text="Close Music",
-                 command=lambda: self.close_process_by_name("Music")).pack(side="left", padx=2)
-        ttk.Button(self.control_frame, text="Close All",
-                 command=self.close_all_processes).pack(side="left", padx=2)
-
-        # Separator
-        ttk.Separator(self.control_frame, orient='vertical').pack(side='left', padx=5, fill='y')
-
-        # Background tasks
-        ttk.Label(self.control_frame, text="Tasks:").pack(side="left", padx=5)
-        ttk.Button(self.control_frame, text="Start Background Tasks",
-                 command=self.start_background_tasks).pack(side="left", padx=2)
-        ttk.Button(self.control_frame, text="Start Photo Simulation",
-           command=self.start_photo_simulation).pack(side="left", padx=2)
-
-        ttk.Button(self.control_frame, text="Stop Tasks",
-                 command=self.stop_background_tasks).pack(side="left", padx=2)
-
-        # Exit button with more padding
-        ttk.Separator(self.control_frame, orient='vertical').pack(side='left', padx=5, fill='y')
-        ttk.Button(self.control_frame, text="X",
-                 command=self.quit, width=3).pack(side="right", padx=(10, 0))
+        ctrl_style = ttk.Style()
+        ctrl_style.configure("Ctrl.TButton", font=("Segoe UI", 10, "bold"), padding=6, foreground="#222", background="#e0e0e0", borderwidth=0)
+        ctrl_style.map("Ctrl.TButton",
+            background=[('active', '#e3f2fd'), ('!active', '#e0e0e0')],
+            relief=[('pressed', 'sunken'), ('!pressed', 'raised')])
+        ctrl_style.configure('Ctrl.Hovered.TButton', background='#e3f2fd', foreground="#1976d2", font=("Segoe UI", 10, "bold"), padding=6, borderwidth=0)
+        # Uygulama butonları grubu
+        app_frame = ttk.Frame(self.control_frame)
+        app_frame.pack(side="left", padx=(0, 10))
+        ttk.Label(app_frame, text="📱 Applications:", font=("Segoe UI", 10, "bold")).pack(side="left", padx=(0, 5))
+        cam_btn = ttk.Button(app_frame, text="📷 Launch Camera", command=self.launch_camera, style="Ctrl.TButton")
+        cam_btn.pack(side="left", padx=2)
+        mus_btn = ttk.Button(app_frame, text="🎵 Launch Music", command=self.launch_music, style="Ctrl.TButton")
+        mus_btn.pack(side="left", padx=2)
+        # Hover efektleri
+        for btn in [cam_btn, mus_btn]:
+            btn.bind('<Enter>', lambda e, b=btn: b.configure(style='Ctrl.Hovered.TButton'))
+            btn.bind('<Leave>', lambda e, b=btn: b.configure(style='Ctrl.TButton'))
+        ttk.Separator(self.control_frame, orient='vertical').pack(side='left', padx=8, fill='y')
+        # Process control grubu
+        proc_frame = ttk.Frame(self.control_frame)
+        proc_frame.pack(side="left", padx=(0, 10))
+        ttk.Label(proc_frame, text="⚙️ Process Control:", font=("Segoe UI", 10, "bold")).pack(side="left", padx=5)
+        close_cam_btn = ttk.Button(proc_frame, text="❌ Close Camera", command=lambda: self.close_process_by_name("Camera"), style="Ctrl.TButton")
+        close_cam_btn.pack(side="left", padx=2)
+        close_mus_btn = ttk.Button(proc_frame, text="❌ Close Music", command=lambda: self.close_process_by_name("Music"), style="Ctrl.TButton")
+        close_mus_btn.pack(side="left", padx=2)
+        close_all_btn = ttk.Button(proc_frame, text="🗑️ Close All", command=self.close_all_processes, style="Ctrl.TButton")
+        close_all_btn.pack(side="left", padx=2)
+        for btn in [close_cam_btn, close_mus_btn, close_all_btn]:
+            btn.bind('<Enter>', lambda e, b=btn: b.configure(style='Ctrl.Hovered.TButton'))
+            btn.bind('<Leave>', lambda e, b=btn: b.configure(style='Ctrl.TButton'))
+        ttk.Separator(self.control_frame, orient='vertical').pack(side='left', padx=8, fill='y')
+        # Tasks grubu
+        task_frame = ttk.Frame(self.control_frame)
+        task_frame.pack(side="left", padx=(0, 10))
+        ttk.Label(task_frame, text="🔄 Tasks:", font=("Segoe UI", 10, "bold")).pack(side="left", padx=5)
+        start_bg_btn = ttk.Button(task_frame, text="▶️ Start Background Tasks", command=self.start_background_tasks, style="Ctrl.TButton")
+        start_bg_btn.pack(side="left", padx=2)
+        start_photo_btn = ttk.Button(task_frame, text="📸 Start Photo Simulation", command=self.start_photo_simulation, style="Ctrl.TButton")
+        start_photo_btn.pack(side="left", padx=2)
+        stop_btn = ttk.Button(task_frame, text="⏹️ Stop Tasks", command=self.stop_background_tasks, style="Ctrl.TButton")
+        stop_btn.pack(side="left", padx=2)
+        for btn in [start_bg_btn, start_photo_btn, stop_btn]:
+            btn.bind('<Enter>', lambda e, b=btn: b.configure(style='Ctrl.Hovered.TButton'))
+            btn.bind('<Leave>', lambda e, b=btn: b.configure(style='Ctrl.TButton'))
+        ttk.Separator(self.control_frame, orient='vertical').pack(side='left', padx=8, fill='y')
+        # Exit
+        exit_btn = ttk.Button(self.control_frame, text="❎", command=self.quit, width=3, style="Ctrl.TButton")
+        exit_btn.pack(side="right", padx=(10, 0))
+        exit_btn.bind('<Enter>', lambda e: exit_btn.configure(style='Ctrl.Hovered.TButton'))
+        exit_btn.bind('<Leave>', lambda e: exit_btn.configure(style='Ctrl.TButton'))
 
     def launch_camera(self):
         app = PCB(pid=1, app_name="Camera", state="READY", priority=1)
@@ -304,12 +416,153 @@ class OSVisualizer(tk.Tk):
                  f"Usage: {used/total*100:.1f}%" if total > 0 else "0%")
 
     def update_file_display(self):
-        self.file_text.delete("1.0", tk.END)
-        files = self.fs.list_files()
-        self.file_text.insert(tk.END, "Files:\n")
+        # Dosya gezgini Treeview'ı ağaç yapısı olarak güncelle
+        self.fs_tree.delete(*self.fs_tree.get_children())
+        # Mevcut yolu göster
+        path = "/" + "/".join([d.name for d in self.fs.path_stack])
+        if hasattr(self, 'fs_path_label'):
+            self.fs_path_label.config(text=path)
+        # Filtre uygula
+        search = self.fs_search_var.get().lower() if hasattr(self, 'fs_search_var') else ''
+        dirs, files = self.fs.ls()
+        dirs = [d for d in dirs if search in d.lower()]
+        files = [f for f in files if search in f.lower()]
+        for d in dirs:
+            self.fs_tree.insert('', 'end', text=f"📁 {d}")
         for f in files:
-            self.file_text.insert(tk.END, f"  {f}\n")
-        
+            self.fs_tree.insert('', 'end', text=f"📄 {f}")
+
+    def create_folder_popup(self):
+        popup = tk.Toplevel(self)
+        popup.title('Yeni Klasör Oluştur')
+        tk.Label(popup, text='Klasör adı:').pack(padx=8, pady=4)
+        entry = tk.Entry(popup)
+        entry.pack(padx=8, pady=4)
+        error_label = tk.Label(popup, text='', fg='red')
+        error_label.pack()
+        def create():
+            foldername = entry.get().strip()
+            if not foldername:
+                error_label.config(text='Klasör adı boş olamaz!')
+                return
+            try:
+                self.fs.mkdir(foldername)
+                self.update_file_display()
+                popup.destroy()
+            except Exception as e:
+                error_label.config(text=f'Hata: {e}')
+        ttk.Button(popup, text='Oluştur', command=create).pack(pady=6)
+        entry.focus()
+
+    def _add_tooltip(self, widget, text):
+        # Basit tooltip desteği
+        tooltip = tk.Toplevel(widget)
+        tooltip.withdraw()
+        tooltip.overrideredirect(True)
+        label = tk.Label(tooltip, text=text, background="#ffffe0", relief="solid", borderwidth=1, font=("Segoe UI", 9))
+        label.pack()
+        def enter(event):
+            x = widget.winfo_rootx() + 40
+            y = widget.winfo_rooty() + 20
+            tooltip.geometry(f'+{x}+{y}')
+            tooltip.deiconify()
+        def leave(event):
+            tooltip.withdraw()
+        widget.bind('<Enter>', enter)
+        widget.bind('<Leave>', leave)
+
+    def _panel_flash(self, widget):
+        # Panelde animasyon/akışkanlık için kısa renk efekti
+        orig = widget.cget('background') if 'background' in widget.keys() else '#fff'
+        try:
+            widget.configure(background='#b3e5fc')
+            widget.after(120, lambda: widget.configure(background=orig))
+        except Exception:
+            pass
+
+    def on_fs_select(self, event=None):
+        # Seçili dosya veya klasörün detayını göster
+        selected = self.fs_tree.selection()
+        if not selected:
+            self.fs_detail.config(state='normal')
+            self.fs_detail.delete('1.0', tk.END)
+            self.fs_detail.config(state='disabled')
+            return
+        item_text = self.fs_tree.item(selected[0], 'text')
+        self.fs_detail.config(state='normal')
+        self.fs_detail.delete('1.0', tk.END)
+        if item_text.startswith('📄 '):
+            filename = item_text[2:].strip()
+            # Dosya bilgisi
+            info = self.fs.file_info(filename)
+            if isinstance(info, dict):
+                self.fs_detail.insert(tk.END, f"Ad: {info['name']}\nBoyut: {info['size']} byte\nOluşturulma: {info['created_at']}\n\n")
+            else:
+                self.fs_detail.insert(tk.END, f"{info}\n\n")
+            # İçerik
+            try:
+                content = self.fs.read_file(filename)
+            except Exception as e:
+                content = f"(Okunamadı: {e})"
+            self.fs_detail.insert(tk.END, content)
+        elif item_text.startswith('📁 '):
+            foldername = item_text[2:].strip()
+            info = self.fs.dir_info(foldername)
+            if isinstance(info, dict):
+                self.fs_detail.insert(tk.END, f"Klasör: {info['name']}\nOluşturulma: {info['created_at']}\nAlt klasör: {info['folders']}\nDosya: {info['files']}\n")
+            else:
+                self.fs_detail.insert(tk.END, "Klasör bilgisi bulunamadı.")
+        else:
+            self.fs_detail.insert(tk.END, "Detay yok.")
+        self.fs_detail.config(state='disabled')
+
+
+    def on_fs_select(self, event=None):
+        # Seçili dosyanın içeriğini veya detayını göster
+        selected = self.fs_tree.selection()
+        if not selected:
+            self.fs_detail.config(state='normal')
+            self.fs_detail.delete('1.0', tk.END)
+            self.fs_detail.config(state='disabled')
+            return
+        filename = selected[0]
+        try:
+            content = self.fs.read_file(filename)
+        except Exception as e:
+            content = f"(Okunamadı: {e})"
+        self.fs_detail.config(state='normal')
+        self.fs_detail.delete('1.0', tk.END)
+        self.fs_detail.insert(tk.END, content)
+        self.fs_detail.config(state='disabled')
+
+    def create_file_popup(self):
+        popup = tk.Toplevel(self)
+        popup.title('Yeni Dosya Oluştur')
+        tk.Label(popup, text='Dosya adı:').pack(padx=8, pady=4)
+        entry = tk.Entry(popup)
+        entry.pack(padx=8, pady=4)
+        def create():
+            filename = entry.get().strip()
+            if filename:
+                self.fs.create_file(filename)
+                self._panel_flash(self.fs_tree)
+                self.update_file_display()
+            popup.destroy()
+        ttk.Button(popup, text='Oluştur', command=create).pack(pady=6)
+        entry.focus()
+
+    def delete_selected_file(self):
+        selected = self.fs_tree.selection()
+        if not selected:
+            return
+        filename = selected[0]
+        try:
+            self.fs.delete_file(filename)
+            self._panel_flash(self.fs_tree)
+        except Exception as e:
+            self.log_message(f"Dosya silinemedi: {e}")
+        self.update_file_display()
+
     def close_process_by_name(self, app_name):
         queues = self.scheduler.list_queues()
         for queue in queues.values():
