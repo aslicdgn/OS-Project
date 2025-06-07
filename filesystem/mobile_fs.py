@@ -141,3 +141,18 @@ class FileSystem:
                 }
             else:
                 return "Directory not found."
+                
+    def delete_file(self, name):
+        with self.lock:
+            if name in self.current_directory.files:
+                del self.current_directory.files[name]
+            else:
+                raise FileNotFoundError(f"File '{name}' not found.")
+
+    def delete_directory(self, name):
+        with self.lock:
+            if name in self.current_directory.subdirectories:
+                del self.current_directory.subdirectories[name]
+            else:
+                raise FileNotFoundError(f"Directory '{name}' not found.")
+

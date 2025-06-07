@@ -416,21 +416,29 @@ class OSVisualizer(tk.Tk):
                  f"Usage: {used/total*100:.1f}%" if total > 0 else "0%")
 
     def update_file_display(self):
-        # Dosya gezgini Treeview'ı ağaç yapısı olarak güncelle
+        # Önce seçili elemanı al
+        selected = self.fs_tree.selection()
+        selected_text = None
+        if selected:
+            selected_text = self.fs_tree.item(selected[0], "text")
+
+        # Treeview temizle
         self.fs_tree.delete(*self.fs_tree.get_children())
-        # Mevcut yolu göster
-        path = "/" + "/".join([d.name for d in self.fs.path_stack])
-        if hasattr(self, 'fs_path_label'):
-            self.fs_path_label.config(text=path)
-        # Filtre uygula
-        search = self.fs_search_var.get().lower() if hasattr(self, 'fs_search_var') else ''
+
+        # Dosya ve klasörleri yeniden ekle
         dirs, files = self.fs.ls()
-        dirs = [d for d in dirs if search in d.lower()]
-        files = [f for f in files if search in f.lower()]
         for d in dirs:
-            self.fs_tree.insert('', 'end', text=f"📁 {d}")
+            self.fs_tree.insert("", "end", text=f"📁 {d}")
         for f in files:
-            self.fs_tree.insert('', 'end', text=f"📄 {f}")
+            self.fs_tree.insert("", "end", text=f"📄 {f}")
+
+        # Önceki seçim geri yükleniyor
+        if selected_text:
+            for item in self.fs_tree.get_children():
+                if self.fs_tree.item(item, "text") == selected_text:
+                    self.fs_tree.selection_set(item)
+                    self.fs_tree.see(item)
+                    break
 
     def create_folder_popup(self):
         popup = tk.Toplevel(self)
@@ -481,30 +489,28 @@ class OSVisualizer(tk.Tk):
             pass
 
     def on_fs_select(self, event=None):
-        # Seçili dosya veya klasörün detayını göster
         selected = self.fs_tree.selection()
         if not selected:
             self.fs_detail.config(state='normal')
             self.fs_detail.delete('1.0', tk.END)
             self.fs_detail.config(state='disabled')
             return
-        item_text = self.fs_tree.item(selected[0], 'text')
+
+        item = selected[0]
+        item_text = self.fs_tree.item(item, 'text')
+
         self.fs_detail.config(state='normal')
         self.fs_detail.delete('1.0', tk.END)
+
         if item_text.startswith('📄 '):
             filename = item_text[2:].strip()
-            # Dosya bilgisi
             info = self.fs.file_info(filename)
             if isinstance(info, dict):
                 self.fs_detail.insert(tk.END, f"Ad: {info['name']}\nBoyut: {info['size']} byte\nOluşturulma: {info['created_at']}\n\n")
-            else:
-                self.fs_detail.insert(tk.END, f"{info}\n\n")
-            # İçerik
-            try:
                 content = self.fs.read_file(filename)
-            except Exception as e:
-                content = f"(Okunamadı: {e})"
-            self.fs_detail.insert(tk.END, content)
+                self.fs_detail.insert(tk.END, content)
+            else:
+                self.fs_detail.insert(tk.END, f"{info}")
         elif item_text.startswith('📁 '):
             foldername = item_text[2:].strip()
             info = self.fs.dir_info(foldername)
@@ -512,28 +518,10 @@ class OSVisualizer(tk.Tk):
                 self.fs_detail.insert(tk.END, f"Klasör: {info['name']}\nOluşturulma: {info['created_at']}\nAlt klasör: {info['folders']}\nDosya: {info['files']}\n")
             else:
                 self.fs_detail.insert(tk.END, "Klasör bilgisi bulunamadı.")
-        else:
-            self.fs_detail.insert(tk.END, "Detay yok.")
+
         self.fs_detail.config(state='disabled')
 
 
-    def on_fs_select(self, event=None):
-        # Seçili dosyanın içeriğini veya detayını göster
-        selected = self.fs_tree.selection()
-        if not selected:
-            self.fs_detail.config(state='normal')
-            self.fs_detail.delete('1.0', tk.END)
-            self.fs_detail.config(state='disabled')
-            return
-        filename = selected[0]
-        try:
-            content = self.fs.read_file(filename)
-        except Exception as e:
-            content = f"(Okunamadı: {e})"
-        self.fs_detail.config(state='normal')
-        self.fs_detail.delete('1.0', tk.END)
-        self.fs_detail.insert(tk.END, content)
-        self.fs_detail.config(state='disabled')
 
     def create_file_popup(self):
         popup = tk.Toplevel(self)
@@ -555,13 +543,18 @@ class OSVisualizer(tk.Tk):
         selected = self.fs_tree.selection()
         if not selected:
             return
-        filename = selected[0]
-        try:
-            self.fs.delete_file(filename)
-            self._panel_flash(self.fs_tree)
-        except Exception as e:
-            self.log_message(f"Dosya silinemedi: {e}")
-        self.update_file_display()
+        item = selected[0]
+        item_text = self.fs_tree.item(item, 'text')
+
+        if item_text.startswith('📄 '):
+            filename = item_text[2:].strip()
+            try:
+                self.fs.delete_file(filename)
+                self._panel_flash(self.fs_tree)
+                self.update_file_display()
+            except Exception as e:
+                self.log_message(f"Dosya silinemedi: {e}")
+
 
     def close_process_by_name(self, app_name):
         queues = self.scheduler.list_queues()
