@@ -4,15 +4,22 @@ import threading
 
 class File:
     def __init__(self, name, content=""):
+        if isinstance(content, bytes):
+            self.content = content
+            self.size = len(content)
+        else:
+            self.content = content
+            self.size = len(content.encode('utf-8'))
         self.name = name
-        self.content = content
-        self.size = len(content.encode('utf-8'))  # byte cinsinden
         self.created_at = time.ctime()
 
     def write(self, content):
-        self.content = content
-        self.size = len(content.encode('utf-8'))
-
+        if isinstance(content, bytes):
+            self.content = content
+            self.size = len(content)
+        else:
+            self.content = content
+            self.size = len(content.encode('utf-8'))
 
 class Directory:
     def __init__(self, name):

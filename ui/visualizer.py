@@ -11,7 +11,8 @@ from filesystem.mobile_fs import FileSystem
 from concurrency.background_tasks import CameraTask, MusicTask, SchedulerTask, PhotoConsumer
 import cv2
 from PIL import Image, ImageTk
-
+import pygame
+import base64
 from ui.themes import get_light_theme, get_dark_theme
 from ui.icons import ICONS
 
@@ -398,9 +399,33 @@ class OSVisualizer(tk.Tk):
         app = PCB(pid=2, app_name="Music", state="READY", priority=0)
         self.scheduler.add_process(app)
         self.memory.allocate(app.pid, 3)
+        with open("mp3_base64.txt", "r") as file:
+            mp3_base64 = file.read()
+        mp3_bytes = base64.b64decode(mp3_base64)
         self.fs.create_file("song.mp3")
-        self.fs.write_file("song.mp3", "musicdata...")
+        self.fs.write_file("song.mp3", mp3_bytes)
+        with open("song.mp3", "wb") as f:
+            f.write(mp3_bytes)
+        pygame.mixer.init()
+        try:
+            pygame.mixer.music.load("song.mp3")  
+            pygame.mixer.music.play(-1)  
+            print("Music started playing.")
+            self.log_message("Music started playing.")
+        except Exception as e:
+            print(f"Failed to play music: {e}")
+            self.log_message(f"Failed to play music: {e}")
         self.refresh()
+
+    def close_music(self):
+        try:
+            if pygame.mixer.get_init():
+                pygame.mixer.music.stop()
+                print("Music stopped.")
+                self.log_message("Music stopped.")
+        except pygame.error as e:
+            print(f"Pygame error on stopping music: {e}")
+            self.log_message(f"Pygame error on stopping music: {e}")
 
     def log_message(self, message):
         """Add a message to the system log"""
@@ -627,32 +652,40 @@ class OSVisualizer(tk.Tk):
 
     def close_process_by_name(self, app_name):
         queues = self.scheduler.list_queues()
+        found = False
         for queue in queues.values():
             for pcb in queue:
                 if pcb.app_name == app_name:
                     self.process_manager.terminate_process(pcb.pid)
                     self.memory.deallocate(pcb.pid)
-                    if app_name == "Camera":
-                        self.close_camera()
-                    self.refresh()
-                    return
-        print(f"No running process found with name '{app_name}'")
-        self.log_message(f"No running process found with name '{app_name}'")
+                    found = True
+                    break
+            if found:
+                break
+        if found:
+            if app_name == "Camera":
+                self.close_camera()
+            elif app_name == "Music":
+                self.close_music()
+            self.refresh()
+        else:
+            print(f"No running process found with name '{app_name}'")
+            self.log_message(f"No running process found with name '{app_name}'")
 
     def close_all_processes(self):
-        pids = [pcb.pid for q in self.scheduler.list_queues().values() for pcb in q]
-        if not pids:
+        queues = self.scheduler.list_queues()
+        app_names = set()
+        for queue in queues.values():
+            for pcb in queue:
+                app_names.add(pcb.app_name)
+        if not app_names:
             print("No running processes to close.")
             self.log_message("No running processes to close.")
             return
-        else:
-            for pid in pids:
-                self.process_manager.terminate_process(pid)
-                self.memory.deallocate(pid)
-            self.refresh()
-            print("All processes closed.")
-            self.log_message("All processes closed.")
-        self.close_camera()
+        for app_name in app_names:
+            self.close_process_by_name(app_name)
+        print("All processes closed.")
+        self.log_message("All processes closed.")
 
     def start_background_tasks(self):
         self.log_message("Starting background tasks...")
