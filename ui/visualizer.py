@@ -12,6 +12,7 @@ from concurrency.background_tasks import CameraTask, MusicTask, SchedulerTask, P
 import cv2
 from PIL import Image, ImageTk
 import re
+import io
 import pygame
 import base64
 from ui.themes import get_light_theme, get_dark_theme
@@ -28,7 +29,7 @@ class OSVisualizer(tk.Tk):
 
         self.scheduler = Scheduler()
         self.process_manager = ProcessManager(self.scheduler)
-        self.memory = MemoryManager(size=50)
+        self.memory = MemoryManager()
         self.fs = FileSystem()
 
         self.bg_camera = CameraTask(self.fs, log_fn=self.log_message)
@@ -387,7 +388,9 @@ class OSVisualizer(tk.Tk):
                     print(f"Photo saved as {filename}")
                     self.log_message(f"Photo saved as {filename}")
                     self.fs.create_file(filename)
-                    self.fs.write_file(filename, "binarydata...")
+                    is_success, buffer = cv2.imencode(".jpg", frame)
+                    if is_success:
+                        self.fs.write_file(filename, buffer.tobytes())
                     self.photo_counter += 1
         self.camera_label.winfo_toplevel().bind("<Key>", on_key)
         self.refresh()
@@ -614,10 +617,19 @@ class OSVisualizer(tk.Tk):
             info = self.fs.file_info(filename)
             if isinstance(info, dict):
                 self.fs_detail.insert(tk.END, f"Ad: {info['name']}\nBoyut: {info['size']} byte\nOluşturulma: {info['created_at']}\n\n")
+                self.fs_detail.delete('1.0', tk.END)
+                self.fs_detail.insert(tk.END, f"Name: {info['name']}\nSize: {info['size']} byte\nCreated Date: {info['created_at']}\n\n")
+                if filename.lower().endswith(('.jpg', '.jpeg', '.png')):
+                    self.close_process_by_name("Camera")
+                    data = self.fs.read_file(filename)
+                    image = Image.open(io.BytesIO(data))
+                    image = image.resize((200, 150), Image.LANCZOS)
+                    imgtk = ImageTk.PhotoImage(image)
+                    self.camera_label.imgtk = imgtk
+                    self.camera_label.config(image=imgtk)
+            else:
                 content = self.fs.read_file(filename)
                 self.fs_detail.insert(tk.END, content)
-            else:
-                self.fs_detail.insert(tk.END, f"{info}")
         elif item_text.startswith('📁 '):
             foldername = item_text[2:].strip()
             info = self.fs.dir_info(foldername)
@@ -664,6 +676,8 @@ class OSVisualizer(tk.Tk):
 
 
     def close_process_by_name(self, app_name):
+        if app_name == "Camera" and not getattr(self, 'camera_running', False):
+            return
         queues = self.scheduler.list_queues()
         found = False
         for queue in queues.values():
