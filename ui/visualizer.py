@@ -11,6 +11,7 @@ from filesystem.mobile_fs import FileSystem
 from concurrency.background_tasks import CameraTask, MusicTask, SchedulerTask, PhotoConsumer
 import cv2
 from PIL import Image, ImageTk
+import re
 import pygame
 import base64
 from ui.themes import get_light_theme, get_dark_theme
@@ -327,6 +328,17 @@ class OSVisualizer(tk.Tk):
         exit_btn.bind('<Enter>', lambda e: exit_btn.configure(style='Ctrl.Hovered.TButton'))
         exit_btn.bind('<Leave>', lambda e: exit_btn.configure(style='Ctrl.TButton'))
 
+    def get_next_photo_number(self):
+        existing_photos = []
+        for fname in os.listdir("."):  
+            match = re.match(r"photo(\d+)\.jpg", fname)
+            if match:
+                existing_photos.append(int(match.group(1)))
+        if existing_photos:
+            return max(existing_photos) + 1
+        else:
+            return 1
+
     def launch_camera(self):
         queues = self.scheduler.list_queues()
         for queue in queues.values():
@@ -369,7 +381,8 @@ class OSVisualizer(tk.Tk):
             if event.keysym == "space":
                 ret, frame = self.cap.read()
                 if ret:
-                    filename = f"photo{self.photo_counter}.jpg"
+                    photo_num = self.get_next_photo_number()
+                    filename = f"photo{photo_num}.jpg"
                     cv2.imwrite(filename, frame)
                     print(f"Photo saved as {filename}")
                     self.log_message(f"Photo saved as {filename}")
