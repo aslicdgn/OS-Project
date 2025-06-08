@@ -9,6 +9,8 @@ from process.manager import ProcessManager
 from memory.memory_manager import MemoryManager
 from filesystem.mobile_fs import FileSystem
 from concurrency.background_tasks import CameraTask, MusicTask, SchedulerTask, PhotoConsumer
+import cv2
+from PIL import Image, ImageTk
 
 from ui.themes import get_light_theme, get_dark_theme
 from ui.icons import ICONS
@@ -36,6 +38,7 @@ class OSVisualizer(tk.Tk):
         self.refresh()
 
         self.processed_count = 0
+        self.photo_counter = 1
 
     def switch_theme(self):
         if self.theme == 'light':
@@ -207,6 +210,12 @@ class OSVisualizer(tk.Tk):
         self.fs_detail.configure(yscrollcommand=log_vsb.set)
         self.fs_detail.pack(side="right", fill="both", expand=False, padx=2, pady=2)
         log_vsb.pack(side="right", fill="y")
+        # Camera
+        self.camera_frame = ttk.Frame(fs_frame, height=120)
+        self.camera_frame.pack_propagate(False)
+        self.camera_frame.pack(side="top", fill="x", padx=2, pady=5)
+        self.camera_label = tk.Label(self.camera_frame)
+        self.camera_label.pack(fill="both", expand=True)
         # Dosya işlemleri için butonlar (modern ve tooltip'li)
         btn_frame = ttk.Frame(fs_frame)
         btn_frame.pack(side="bottom", fill="x", pady=2)
@@ -318,14 +327,74 @@ class OSVisualizer(tk.Tk):
         exit_btn.bind('<Leave>', lambda e: exit_btn.configure(style='Ctrl.TButton'))
 
     def launch_camera(self):
+        queues = self.scheduler.list_queues()
+        for queue in queues.values():
+            for pcb in queue:
+                if pcb.app_name == "Camera":
+                    print("Camera is already running.")
+                    self.log_message("Camera is already running.")
+                    return
         app = PCB(pid=1, app_name="Camera", state="READY", priority=1)
         self.scheduler.add_process(app)
         self.memory.allocate(app.pid, 5)
-        self.fs.create_file("photo1.jpg")
-        self.fs.write_file("photo1.jpg", "binarydata...")
+        self.cap = cv2.VideoCapture(0)
+        if not self.cap.isOpened():
+            print("Error: Cannot open camera")
+            self.log_message("Error: Cannot open camera")
+            return
+        self.photo_counter = 1
+        self.camera_running = True 
+        print("Camera is open. Press SPACE to take a photo.")
+        self.log_message("Camera is open. Press SPACE to take a photo.")
+        def update_frame():
+            if not self.camera_running:
+                return
+            ret, frame = self.cap.read()
+            if not ret:
+                print("Error: Can't receive frame. Exiting...")
+                self.log_message("Error: Can't receive frame. Exiting...")
+                self.cap.release()
+                self.camera_label.config(image='')
+                return
+            frame = cv2.resize(frame, (200, 150))
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            img = Image.fromarray(frame_rgb)
+            imgtk = ImageTk.PhotoImage(image=img)
+            self.camera_label.imgtk = imgtk  
+            self.camera_label.config(image=imgtk)
+            self.camera_label.after(30, update_frame) 
+        update_frame()
+        def on_key(event):
+            if event.keysym == "space":
+                ret, frame = self.cap.read()
+                if ret:
+                    filename = f"photo{self.photo_counter}.jpg"
+                    cv2.imwrite(filename, frame)
+                    print(f"Photo saved as {filename}")
+                    self.log_message(f"Photo saved as {filename}")
+                    self.fs.create_file(filename)
+                    self.fs.write_file(filename, "binarydata...")
+                    self.photo_counter += 1
+        self.camera_label.winfo_toplevel().bind("<Key>", on_key)
         self.refresh()
 
+    def close_camera(self):
+        self.camera_running = False
+        if hasattr(self, 'cap') and self.cap.isOpened():
+            self.cap.release()
+        self.camera_label.config(image='')
+        self.camera_label.winfo_toplevel().unbind("<Key>")  
+        print("Camera closed.")
+        self.log_message("Camera closed.")
+
     def launch_music(self):
+        queues = self.scheduler.list_queues()
+        for queue in queues.values():
+            for pcb in queue:
+                if pcb.app_name == "Music":
+                    print("Music is already running.")
+                    self.log_message("Music is already running.")
+                    return
         app = PCB(pid=2, app_name="Music", state="READY", priority=0)
         self.scheduler.add_process(app)
         self.memory.allocate(app.pid, 3)
@@ -563,16 +632,27 @@ class OSVisualizer(tk.Tk):
                 if pcb.app_name == app_name:
                     self.process_manager.terminate_process(pcb.pid)
                     self.memory.deallocate(pcb.pid)
+                    if app_name == "Camera":
+                        self.close_camera()
                     self.refresh()
                     return
         print(f"No running process found with name '{app_name}'")
+        self.log_message(f"No running process found with name '{app_name}'")
 
     def close_all_processes(self):
         pids = [pcb.pid for q in self.scheduler.list_queues().values() for pcb in q]
-        for pid in pids:
-            self.process_manager.terminate_process(pid)
-            self.memory.deallocate(pid)
-        self.refresh()
+        if not pids:
+            print("No running processes to close.")
+            self.log_message("No running processes to close.")
+            return
+        else:
+            for pid in pids:
+                self.process_manager.terminate_process(pid)
+                self.memory.deallocate(pid)
+            self.refresh()
+            print("All processes closed.")
+            self.log_message("All processes closed.")
+        self.close_camera()
 
     def start_background_tasks(self):
         self.log_message("Starting background tasks...")
