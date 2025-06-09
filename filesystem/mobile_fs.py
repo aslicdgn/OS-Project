@@ -1,10 +1,11 @@
 import time
 import threading
-
-from collections import OrderedDict
 import uuid
+from collections import OrderedDict
+from cryptography.fernet import Fernet
+from .user import UserManager, PermissionManager, EncryptedFile
 
-BLOCK_SIZE = 512  # bytes
+BLOCK_SIZE = 512
 
 class BlockStorage:
     def __init__(self):
@@ -75,13 +76,13 @@ class File:
                 if self.cache:
                     self.cache.put(block_id, block)
         return b''.join(content)
-    
+
 
 class Directory:
     def __init__(self, name):
         self.name = name
-        self.files = {}  # Dosya adı -> File nesnesi
-        self.subdirectories = {}  # Klasör adı -> Directory nesnesi
+        self.files = {}
+        self.subdirectories = {}
         self.created_at = time.ctime()
 
     def create_file(self, name, content=""):
@@ -99,28 +100,30 @@ class FileSystem:
         self.path_stack = [self.root]
         self.lock = threading.Lock()
         self.storage = BlockStorage()
-        self.cache = BlockCache(capacity=20)  # Cache size configurable
+        self.cache = BlockCache(capacity=20)
+        self.user_manager = UserManager()
+        self.permission_manager = PermissionManager()
 
+    def get_current_path(self):
+        return "/".join([d.name for d in self.path_stack])
 
     def get_tree_structure(self, directory=None):
-        # Döndürülen yapı: { 'type': 'dir'/'file', 'name': ..., 'children': [...] }
         with self.lock:
             if directory is None:
-                directory = self.root  # Kökten başlat, current_directory değil!
+                directory = self.root
             result = {
                 'type': 'dir',
                 'name': directory.name,
                 'children': []
             }
-            # Önce klasörler
             for subdir in directory.subdirectories.values():
                 result['children'].append(self.get_tree_structure(subdir))
-            # Sonra dosyalar
             for file in directory.files.values():
                 result['children'].append({
                     'type': 'file',
                     'name': file.name,
-                    'size': file.size
+                    'size': file.size,
+
                 })
             return result
 
@@ -142,6 +145,14 @@ class FileSystem:
     def create_file(self, name, content=""):
         self.current_directory.files[name] = File(name, content, self.storage, self.cache)
 
+    def create_encrypted_file(self, name, content="", key=None):
+        user = self.user_manager.get_current_user()
+        if not user:
+            raise PermissionError("You must be logged in to create an encrypted file.")
+
+        encrypted_file = EncryptedFile(name, content, key=key, owner=user.username)
+        self.current_directory.files[name] = encrypted_file
+        self.permission_manager.set_permissions(self.get_current_path() + "/" + name, owner=user.username)
 
     def write_file(self, name, content):
         if name not in self.current_directory.files:
@@ -150,11 +161,33 @@ class FileSystem:
             file = self.current_directory.files[name]
             file.write(content)
 
+    def write_encrypted_file(self, name, content):
+        user = self.user_manager.get_current_user()
+        path = self.get_current_path() + "/" + name
+        if not self.permission_manager.check_write(path, user.username):
+            raise PermissionError("You do not have write access to this file.")
+
+        file = self.current_directory.files.get(name)
+        if isinstance(file, EncryptedFile):
+            file.write(content)
+        else:
+            raise TypeError("This file is not encrypted.")
 
     def read_file(self, name):
         file = self.current_directory.files.get(name)
         return file.read().decode('utf-8') if file else "File not found."
 
+    def read_encrypted_file(self, name):
+        user = self.user_manager.get_current_user()
+        path = self.get_current_path() + "/" + name
+        if not self.permission_manager.check_read(path, user.username):
+            raise PermissionError("You do not have read access to this file.")
+
+        file = self.current_directory.files.get(name)
+        if isinstance(file, EncryptedFile):
+            return file.read().decode('utf-8')
+        else:
+            raise TypeError("This file is not encrypted.")
 
     def ls(self):
         with self.lock:
@@ -180,7 +213,6 @@ class FileSystem:
             return results
 
     def file_info(self, name):
-        """Return info about a file in the current directory by name."""
         with self.lock:
             file = self.current_directory.files.get(name)
             if file:
@@ -193,7 +225,6 @@ class FileSystem:
                 return "File not found."
 
     def dir_info(self, name):
-        """Return info about a subdirectory in the current directory by name."""
         with self.lock:
             directory = self.current_directory.subdirectories.get(name)
             if directory:
@@ -205,7 +236,7 @@ class FileSystem:
                 }
             else:
                 return "Directory not found."
-                
+
     def delete_file(self, name):
         with self.lock:
             if name in self.current_directory.files:
@@ -219,4 +250,3 @@ class FileSystem:
                 del self.current_directory.subdirectories[name]
             else:
                 raise FileNotFoundError(f"Directory '{name}' not found.")
-
