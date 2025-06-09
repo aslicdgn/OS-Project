@@ -42,7 +42,7 @@ class UserManager:
 
 class PermissionManager:
     def __init__(self):
-        self.permissions = {}  # path -> {'owner': user, 'read': set(), 'write': set()}
+        self.permissions = {}
 
     def set_permissions(self, path, owner, read_users=None, write_users=None):
         self.permissions[path] = {
@@ -97,7 +97,6 @@ class EncryptedFile:
             key = self.derive_key_from_password(password)
             if key != self.key:
                 return False
-            # Anahtar aynı ise decrypt deneyelim
             fernet = Fernet(key)
             fernet.decrypt(self._encrypted)
             return True

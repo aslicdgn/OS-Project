@@ -190,7 +190,6 @@ class FileSystem:
                     raise TypeError("Existing file is not encrypted.")
             self.set_encrypted_flag(name, True)
         else:
-            # Şifresiz dosya oluştur
             if name not in self.current_directory.files or isinstance(self.current_directory.files[name], EncryptedFile):
                 self.create_file(name, content)
                 self.set_encrypted_flag(name, False)
@@ -219,7 +218,6 @@ class FileSystem:
             return decrypted.decode('utf-8')
 
         else:
-            # Normal dosya
             data = file.read()
             return data.decode('utf-8')
 
