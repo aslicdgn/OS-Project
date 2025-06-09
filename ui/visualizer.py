@@ -37,6 +37,12 @@ class OSVisualizer(tk.Tk):
         self.bg_scheduler = SchedulerTask(self.scheduler)
         self.bg_consumer = PhotoConsumer(log_fn=self.log_message, update_fn=self.increment_processed_count)
 
+        self.setup_toolbar()
+
+        self.status_frame = ttk.Frame(self)
+        self.status_frame.pack(fill="x", padx=10, pady=(10, 0))
+
+
         self.setup_ui()
         self.refresh()
 
@@ -81,6 +87,14 @@ class OSVisualizer(tk.Tk):
         # Tema düğmesi ikonu
         if hasattr(self, 'theme_btn'):
             self.theme_btn.configure(text=ICONS['theme_dark'] if self.theme=='dark' else ICONS['theme_light'])
+
+    def setup_toolbar(self):
+        toolbar = ttk.Frame(self)
+        toolbar.pack(side="top", fill="x")
+
+        btn_block_view = ttk.Button(toolbar, text="View Block Storage", command=self.show_block_storage)
+        btn_block_view.pack(side="left", padx=5)
+
 
     def increment_processed_count(self):
         self.processed_count += 1
@@ -720,7 +734,7 @@ class OSVisualizer(tk.Tk):
                 button_frame = ttk.Frame(popup)
                 button_frame.pack(pady=(0, 10))
 
-                btn_edit = ttk.Button(button_frame, text="Edit & Save", command=enable_edit_mode)
+                btn_edit = ttk.Button(button_frame, text="Edit", command=enable_edit_mode)
                 btn_edit.pack(side="left", padx=5)
 
                 btn_save = ttk.Button(button_frame, text="Save", command=save, state="disabled")
@@ -800,6 +814,23 @@ class OSVisualizer(tk.Tk):
         finally:
             self._panel_flash(self.fs_tree)
             self.update_file_display()
+
+    def show_block_storage(self):
+        window = tk.Toplevel(self)
+        window.title("Block Storage")
+        window.geometry("500x400")
+
+        text_widget = tk.Text(window, wrap="word")
+        text_widget.pack(fill="both", expand=True)
+
+        for i, (block_id, block) in enumerate(self.fs.storage.blocks.items()):
+            try:
+                display_block = block.decode('utf-8')
+            except UnicodeDecodeError:
+                display_block = str(block)
+            text_widget.insert("end", f"Block {i} (ID: {block_id}):\n{display_block}\n\n")
+
+
 
 
     def close_process_by_name(self, app_name):
