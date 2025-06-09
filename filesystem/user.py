@@ -63,13 +63,16 @@ class PermissionManager:
         if path in self.permissions:
             del self.permissions[path]
 
-
+import base64
+from hashlib import sha256
 from cryptography.fernet import Fernet
 
 class EncryptedFile:
     def __init__(self, name, content="", key=None, owner=None):
+        if key is None:
+            raise ValueError("Key must be provided for EncryptedFile.")
         self.name = name
-        self.key = key or Fernet.generate_key()
+        self.key = key
         self.fernet = Fernet(self.key)
         self.owner = owner
         self._encrypted = self.fernet.encrypt(content.encode() if isinstance(content, str) else content)
@@ -84,6 +87,19 @@ class EncryptedFile:
     def get_size(self):
         return len(self._encrypted)
 
-    def get_key(self):
-        return self.key
+    @staticmethod
+    def derive_key_from_password(password):
+        hash = sha256(password.encode()).digest()
+        return base64.urlsafe_b64encode(hash)
 
+    def check_password(self, password):
+        try:
+            key = self.derive_key_from_password(password)
+            if key != self.key:
+                return False
+            # Anahtar aynı ise decrypt deneyelim
+            fernet = Fernet(key)
+            fernet.decrypt(self._encrypted)
+            return True
+        except Exception:
+            return False

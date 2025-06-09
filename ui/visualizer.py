@@ -2,7 +2,7 @@ import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
 from process.pcb import PCB
 from process.scheduler import Scheduler
 from process.manager import ProcessManager
@@ -522,17 +522,12 @@ class OSVisualizer(tk.Tk):
         if selected:
             selected_text = self.fs_tree.item(selected[0], "text")
 
-        # Treeview temizle
         self.fs_tree.delete(*self.fs_tree.get_children())
-
-        # Dosya ve klasörleri yeniden ekle (filtreli)
-        dirs, files = self.fs.ls()
-        for d in dirs:
-            if search_term in d.lower():
-                self.fs_tree.insert("", "end", text=f"📁 {d}")
-        for f in files:
-            if search_term in f.lower():
-                self.fs_tree.insert("", "end", text=f"📄 {f}")
+        for file in self.fs.current_directory.files.values():
+            prefix = "🔒 " if self.fs.is_encrypted(file.name) else "📄 "
+            self.fs_tree.insert('', 'end', text=prefix + file.name)
+        for folder in self.fs.current_directory.subdirectories.values():
+            self.fs_tree.insert('', 'end', text="📁 " + folder.name)
 
         # Önceki seçim geri yükleniyor
         if selected_text:
@@ -651,38 +646,100 @@ class OSVisualizer(tk.Tk):
             foldername = item_text[2:].strip()
             self.fs.cd(foldername)
             self.update_file_display()
-        elif item_text.startswith("📄 "):
+        elif item_text.startswith("📄 ") or item_text.startswith("🔒 "):
             filename = item_text[2:].strip()
-            content = self.fs.read_file(filename)
-            if isinstance(content, bytes):
-                content = content.decode('utf-8', errors='ignore')
 
-            popup = tk.Toplevel(self)
-            popup.title(f"{filename} - File Viewer")
+            def open_viewer_with_content(content, encrypted):
+                popup = tk.Toplevel(self)
+                popup.title(f"{filename} - File Viewer")
 
-            text_widget = tk.Text(popup, width=60, height=20, state="normal")
-            text_widget.insert(tk.END, content)
-            text_widget.config(state="disabled")
-            text_widget.pack(padx=10, pady=10)
+                text_widget = tk.Text(popup, width=60, height=20, state="normal")
+                text_widget.insert(tk.END, content)
+                text_widget.config(state="disabled")
+                text_widget.pack(padx=10, pady=10)
 
-            def enable_edit_mode():
-                text_widget.config(state="normal")
-                save_btn.config(state="normal")
+                encrypt_var = tk.BooleanVar(value=encrypted)
 
-            def save():
-                new_content = text_widget.get("1.0", tk.END).rstrip()
-                self.fs.write_file(filename, new_content)
-                self.log_message(f"{filename} saved successfully.")
-                popup.destroy()
+                def toggle_encrypt():
+                    encrypt_var.set(not encrypt_var.get())
+                    btn_encrypt.config(text="Encrypt" if not encrypt_var.get() else "Decrypt")
 
-            button_frame = ttk.Frame(popup)
-            button_frame.pack(pady=(0, 10))
+                def enable_edit_mode():
+                    text_widget.config(state="normal")
+                    btn_save.config(state="normal")
+                    btn_encrypt.config(state="normal")
 
-            edit_btn = ttk.Button(button_frame, text="Edit & Save", command=enable_edit_mode)
-            edit_btn.pack(side="left", padx=5)
+                def save():
+                    new_content = text_widget.get("1.0", tk.END).rstrip()
+                    # Kaydetme sırasında dosyayı şifrele ya da şifreyi kaldır
+                    if encrypt_var.get():
+                        pwd_popup = tk.Toplevel(popup)
+                        pwd_popup.title("Enter password to encrypt")
 
-            save_btn = ttk.Button(button_frame, text="Save", command=save, state="disabled")
-            save_btn.pack(side="left", padx=5)
+                        tk.Label(pwd_popup, text="Password:").pack(padx=10, pady=5)
+                        pwd_entry = tk.Entry(pwd_popup, show="*")
+                        pwd_entry.pack(padx=10, pady=5)
+                        pwd_entry.focus()
+
+                        def confirm_pwd():
+                            pwd = pwd_entry.get()
+                            if pwd:
+                                self.fs.write_file(filename, new_content, password=pwd)
+                                self.log_message(f"{filename} saved and encrypted successfully.")
+                                pwd_popup.destroy()
+                                popup.destroy()
+                                self.update_file_display()
+                            else:
+                                messagebox.showerror("Error", "Password cannot be empty!")
+
+                        tk.Button(pwd_popup, text="OK", command=confirm_pwd).pack(pady=5)
+                    else:
+                        # Şifre olmadan kaydet
+                        self.fs.write_file(filename, new_content)
+                        self.log_message(f"{filename} saved without encryption.")
+                        popup.destroy()
+                        self.update_file_display()
+
+                button_frame = ttk.Frame(popup)
+                button_frame.pack(pady=(0, 10))
+
+                btn_edit = ttk.Button(button_frame, text="Edit & Save", command=enable_edit_mode)
+                btn_edit.pack(side="left", padx=5)
+
+                btn_save = ttk.Button(button_frame, text="Save", command=save, state="disabled")
+                btn_save.pack(side="left", padx=5)
+
+                btn_encrypt = ttk.Checkbutton(button_frame, text="Encrypt", variable=encrypt_var)
+                btn_encrypt.pack(side="left", padx=5)
+                btn_encrypt.config(state="disabled")
+
+            # Şifreli dosyaysa önce şifre sor
+            if self.fs.is_encrypted(filename):
+                pwd_popup = tk.Toplevel(self)
+                pwd_popup.title(f"Enter password for {filename}")
+
+                tk.Label(pwd_popup, text="Password:").pack(padx=10, pady=5)
+                pwd_entry = tk.Entry(pwd_popup, show="*")
+                pwd_entry.pack(padx=10, pady=5)
+                pwd_entry.focus()
+
+                def check_password():
+                    pwd = pwd_entry.get()
+                    if self.fs.check_password(filename, pwd):
+                        pwd_popup.destroy()
+                        content = self.fs.read_file(filename, password=pwd)
+                        if isinstance(content, bytes):
+                            content = content.decode('utf-8', errors='ignore')
+                        open_viewer_with_content(content, encrypted=True)
+                    else:
+                        messagebox.showerror("Error", "Incorrect password!")
+
+                tk.Button(pwd_popup, text="Submit", command=check_password).pack(pady=10)
+            else:
+                content = self.fs.read_file(filename)
+                if isinstance(content, bytes):
+                    content = content.decode('utf-8', errors='ignore')
+                open_viewer_with_content(content, encrypted=False)
 
     def create_file_popup(self):
         popup = tk.Toplevel(self)

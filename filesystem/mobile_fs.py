@@ -5,6 +5,7 @@ from collections import OrderedDict
 from cryptography.fernet import Fernet
 from .user import UserManager, PermissionManager, EncryptedFile
 
+
 BLOCK_SIZE = 512
 
 class BlockStorage:
@@ -85,8 +86,8 @@ class Directory:
         self.subdirectories = {}
         self.created_at = time.ctime()
 
-    def create_file(self, name, content=""):
-        self.files[name] = File(name, content)
+    def create_file(self, name, content="", storage=None, cache=None):
+        self.files[name] = File(name, content, storage, cache)
 
     def create_subdirectory(self, dir_name):
         if dir_name not in self.subdirectories:
@@ -103,6 +104,7 @@ class FileSystem:
         self.cache = BlockCache(capacity=20)
         self.user_manager = UserManager()
         self.permission_manager = PermissionManager()
+        self.encrypted_flags = {}
 
     def get_current_path(self):
         return "/".join([d.name for d in self.path_stack])
@@ -123,7 +125,7 @@ class FileSystem:
                     'type': 'file',
                     'name': file.name,
                     'size': file.size,
-
+                    'encrypted': self.is_encrypted(file.name)
                 })
             return result
 
@@ -142,75 +144,85 @@ class FileSystem:
                 print("Directory not found.")
             self.current_directory = self.path_stack[-1]
 
+    def is_encrypted(self, filename):
+        return self.encrypted_flags.get(filename, False)
+    
+    def check_password(self, filename, password):
+        file = self.current_directory.files.get(filename)
+        if file is None:
+            raise FileNotFoundError(f"File '{filename}' not found.")
+
+        if not isinstance(file, EncryptedFile) or not hasattr(file, "check_password"):
+            raise TypeError("This file is not encrypted or does not support password checking.")
+
+        return file.check_password(password)
+
+
+
+    def set_encrypted_flag(self, filename, encrypted=True):
+        self.encrypted_flags[filename] = encrypted
+
+    def encrypt_content(self, content, password):
+        key = Fernet.generate_key()
+        cipher = Fernet(key)
+        data = content.encode('utf-8') if isinstance(content, str) else content
+        encrypted = cipher.encrypt(data)
+        return encrypted
+
     def create_file(self, name, content=""):
-        self.current_directory.files[name] = File(name, content, self.storage, self.cache)
+        self.current_directory.create_file(name, content, storage=self.storage, cache=self.cache)
+        self.set_encrypted_flag(name, False)
 
-    def create_encrypted_file(self, name, content="", key=None):
-        user = self.user_manager.get_current_user()
-        if not user:
-            raise PermissionError("You must be logged in to create an encrypted file.")
-
-        encrypted_file = EncryptedFile(name, content, key=key, owner=user.username)
-        self.current_directory.files[name] = encrypted_file
-        self.permission_manager.set_permissions(self.get_current_path() + "/" + name, owner=user.username)
-
-    def write_file(self, name, content):
-        if name not in self.current_directory.files:
-            self.create_file(name, content)
+    def write_file(self, name, content, password=None):
+        if password:
+            key = EncryptedFile.derive_key_from_password(password)
+            if name not in self.current_directory.files or not isinstance(self.current_directory.files[name], EncryptedFile):
+                enc_file = EncryptedFile(name, content, key=key, owner=self.user_manager.get_current_user())
+                self.current_directory.files[name] = enc_file
+                self.set_encrypted_flag(name, True)
+            else:
+                file = self.current_directory.files[name]
+                if isinstance(file, EncryptedFile):
+                    if file.key != key:
+                        raise PermissionError("Wrong password for existing encrypted file.")
+                    file.write(content)
+                else:
+                    raise TypeError("Existing file is not encrypted.")
+            self.set_encrypted_flag(name, True)
         else:
-            file = self.current_directory.files[name]
-            file.write(content)
+            # Şifresiz dosya oluştur
+            if name not in self.current_directory.files or isinstance(self.current_directory.files[name], EncryptedFile):
+                self.create_file(name, content)
+                self.set_encrypted_flag(name, False)
+            else:
+                file = self.current_directory.files[name]
+                file.write(content)
+            self.set_encrypted_flag(name, False)
 
-    def write_encrypted_file(self, name, content):
-        user = self.user_manager.get_current_user()
-        path = self.get_current_path() + "/" + name
-        if not self.permission_manager.check_write(path, user.username):
-            raise PermissionError("You do not have write access to this file.")
 
+    def read_file(self, name, password=None):
         file = self.current_directory.files.get(name)
-        if isinstance(file, EncryptedFile):
-            file.write(content)
+        if not file:
+            return "File not found."
+
+        if self.is_encrypted(name):
+            if not isinstance(file, EncryptedFile):
+                raise TypeError("File encryption state mismatch.")
+
+            if password is None:
+                raise PermissionError("Password required to decrypt this file.")
+
+            if not file.check_password(password):
+                raise PermissionError("Invalid password.")
+
+            decrypted = file.read()
+            return decrypted.decode('utf-8')
+
         else:
-            raise TypeError("This file is not encrypted.")
+            # Normal dosya
+            data = file.read()
+            return data.decode('utf-8')
 
-    def read_file(self, name):
-        file = self.current_directory.files.get(name)
-        return file.read().decode('utf-8') if file else "File not found."
-
-    def read_encrypted_file(self, name):
-        user = self.user_manager.get_current_user()
-        path = self.get_current_path() + "/" + name
-        if not self.permission_manager.check_read(path, user.username):
-            raise PermissionError("You do not have read access to this file.")
-
-        file = self.current_directory.files.get(name)
-        if isinstance(file, EncryptedFile):
-            return file.read().decode('utf-8')
-        else:
-            raise TypeError("This file is not encrypted.")
-
-    def ls(self):
-        with self.lock:
-            dirs = list(self.current_directory.subdirectories.keys())
-            files = list(self.current_directory.files.keys())
-            return dirs, files
-
-    def list_files(self):
-        with self.lock:
-            return [f"{f.name} ({f.size} bytes)" for f in self.current_directory.files.values()]
-
-    def find(self, name, directory=None, path="root"):
-        with self.lock:
-            if directory is None:
-                directory = self.root
-            results = []
-            if name in directory.files:
-                results.append(f"{path}/{name} (file)")
-            if name in directory.subdirectories:
-                results.append(f"{path}/{name} (directory)")
-            for sub_name, sub_dir in directory.subdirectories.items():
-                results.extend(self.find(name, sub_dir, f"{path}/{sub_name}"))
-            return results
 
     def file_info(self, name):
         with self.lock:
@@ -219,7 +231,8 @@ class FileSystem:
                 return {
                     "name": file.name,
                     "size": file.size,
-                    "created_at": file.created_at
+                    "created_at": file.created_at,
+                    "encrypted": self.is_encrypted(name)
                 }
             else:
                 return "File not found."
@@ -241,6 +254,7 @@ class FileSystem:
         with self.lock:
             if name in self.current_directory.files:
                 del self.current_directory.files[name]
+                self.encrypted_flags.pop(name, None)
             else:
                 raise FileNotFoundError(f"File '{name}' not found.")
 
