@@ -92,16 +92,6 @@ class OSVisualizer(tk.Tk):
             self.fs.cd("..")
             self.update_file_display()
 
-    def fs_open_selected(self):
-        selected = self.fs_tree.selection()
-        if not selected:
-            return
-        item_text = self.fs_tree.item(selected[0], 'text')
-        # Sadece klasörse aç
-        if item_text.startswith('📁 '):
-            folder_name = item_text[2:].strip()
-            self.fs.cd(folder_name)
-            self.update_file_display()
 
     def setup_ui(self):
         # Status Bar
@@ -200,12 +190,9 @@ class OSVisualizer(tk.Tk):
         self.fs_search_var.trace_add('write', lambda *args: self.update_file_display())
         back_btn = ttk.Button(nav_frame, text="⬅️ Back", command=self.fs_go_back, style="Modern.TButton")
         back_btn.pack(side="right", padx=2)
-        open_btn = ttk.Button(nav_frame, text="📂 Open", command=self.fs_open_selected, style="Modern.TButton")
-        open_btn.pack(side="right", padx=2)
         new_folder_btn = ttk.Button(nav_frame, text="📁 New Folder", command=self.create_folder_popup, style="Modern.TButton")
         new_folder_btn.pack(side="right", padx=2)
         self._add_tooltip(new_folder_btn, "Create new folder")
-        self._add_tooltip(open_btn, "Open selected folder")
         self._add_tooltip(back_btn, "Go to parent directory")
         # Dosya içeriği/detayı gösteren alan ve scrollbar
         self.fs_detail = tk.Text(fs_frame, height=8, width=30, state='disabled')
@@ -243,8 +230,6 @@ class OSVisualizer(tk.Tk):
         del_file_btn.bind('<Leave>', lambda e: hover_off(e, del_file_btn))
         new_folder_btn.bind('<Enter>', lambda e: hover_on(e, new_folder_btn))
         new_folder_btn.bind('<Leave>', lambda e: hover_off(e, new_folder_btn))
-        open_btn.bind('<Enter>', lambda e: hover_on(e, open_btn))
-        open_btn.bind('<Leave>', lambda e: hover_off(e, open_btn))
         back_btn.bind('<Enter>', lambda e: hover_on(e, back_btn))
         back_btn.bind('<Leave>', lambda e: hover_off(e, back_btn))
         # Dosya gezgini satır hover efekti
@@ -260,6 +245,8 @@ class OSVisualizer(tk.Tk):
                 self.fs_tree.item(iid, tags=())
         self.fs_tree.bind('<Motion>', on_tree_motion)
         self.fs_tree.bind('<Leave>', on_tree_leave)
+        self.fs_tree.bind("<Double-1>", self.on_tree_double_click)
+
 
         # System Log Panel
         log_frame = ttk.LabelFrame(bottom_panel, text="System Log")
@@ -526,6 +513,9 @@ class OSVisualizer(tk.Tk):
                  f"Usage: {used/total*100:.1f}%" if total > 0 else "0%")
 
     def update_file_display(self):
+    # Arama metni
+        search_term = self.fs_search_var.get().lower()
+
         # Önce seçili elemanı al
         selected = self.fs_tree.selection()
         selected_text = None
@@ -535,12 +525,14 @@ class OSVisualizer(tk.Tk):
         # Treeview temizle
         self.fs_tree.delete(*self.fs_tree.get_children())
 
-        # Dosya ve klasörleri yeniden ekle
+        # Dosya ve klasörleri yeniden ekle (filtreli)
         dirs, files = self.fs.ls()
         for d in dirs:
-            self.fs_tree.insert("", "end", text=f"📁 {d}")
+            if search_term in d.lower():
+                self.fs_tree.insert("", "end", text=f"📁 {d}")
         for f in files:
-            self.fs_tree.insert("", "end", text=f"📄 {f}")
+            if search_term in f.lower():
+                self.fs_tree.insert("", "end", text=f"📄 {f}")
 
         # Önceki seçim geri yükleniyor
         if selected_text:
@@ -549,6 +541,7 @@ class OSVisualizer(tk.Tk):
                     self.fs_tree.selection_set(item)
                     self.fs_tree.see(item)
                     break
+
 
     def create_folder_popup(self):
         popup = tk.Toplevel(self)
@@ -640,6 +633,51 @@ class OSVisualizer(tk.Tk):
 
         self.fs_detail.config(state='disabled')
 
+    def on_tree_double_click(self, event=None):
+        selected = self.fs_tree.selection()
+        if not selected:
+            return
+
+        item = selected[0]
+        item_text = self.fs_tree.item(item, 'text')
+
+        if item_text.startswith("📁 "):
+            foldername = item_text[2:].strip()
+            self.fs.cd(foldername)
+            self.update_file_display()
+        elif item_text.startswith("📄 "):
+            filename = item_text[2:].strip()
+            content = self.fs.read_file(filename)
+
+            popup = tk.Toplevel(self)
+            popup.title(f"{filename} - File Viewer")
+
+            text_widget = tk.Text(popup, width=60, height=20, state="normal")
+            text_widget.insert(tk.END, content)
+            text_widget.config(state="disabled")
+            text_widget.pack(padx=10, pady=10)
+
+            def enable_edit_mode():
+                text_widget.config(state="normal")
+                save_btn.config(state="normal")
+
+            def save():
+                new_content = text_widget.get("1.0", tk.END).rstrip()
+                self.fs.write_file(filename, new_content)
+                self.log_message(f"{filename} saved successfully.")
+                popup.destroy()
+
+            # Button Frame
+            button_frame = ttk.Frame(popup)
+            button_frame.pack(pady=(0, 10))
+
+            edit_btn = ttk.Button(button_frame, text="Edit & Save", command=enable_edit_mode)
+            edit_btn.pack(side="left", padx=5)
+
+            save_btn = ttk.Button(button_frame, text="Save", command=save, state="disabled")
+            save_btn.pack(side="left", padx=5)
+
+
 
 
     def create_file_popup(self):
@@ -662,17 +700,26 @@ class OSVisualizer(tk.Tk):
         selected = self.fs_tree.selection()
         if not selected:
             return
+
         item = selected[0]
         item_text = self.fs_tree.item(item, 'text')
 
-        if item_text.startswith('📄 '):
-            filename = item_text[2:].strip()
-            try:
+        try:
+            if item_text.startswith('📄 '):
+                filename = item_text[2:].strip()
                 self.fs.delete_file(filename)
-                self._panel_flash(self.fs_tree)
-                self.update_file_display()
-            except Exception as e:
-                self.log_message(f"Dosya silinemedi: {e}")
+                self.log_message(f"Dosya silindi: {filename}")
+            elif item_text.startswith('📁 '):
+                foldername = item_text[2:].strip()
+                self.fs.delete_directory(foldername)
+                self.log_message(f"Klasör silindi: {foldername}")
+            else:
+                self.log_message("Bilinmeyen öğe türü.")
+        except Exception as e:
+            self.log_message(f"Silme işlemi başarısız: {e}")
+        finally:
+            self._panel_flash(self.fs_tree)
+            self.update_file_display()
 
 
     def close_process_by_name(self, app_name):
