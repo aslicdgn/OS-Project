@@ -310,11 +310,28 @@ class OSVisualizer(tk.Tk):
             btn.bind('<Enter>', lambda e, b=btn: b.configure(style='Ctrl.Hovered.TButton'))
             btn.bind('<Leave>', lambda e, b=btn: b.configure(style='Ctrl.TButton'))
         ttk.Separator(self.control_frame, orient='vertical').pack(side='left', padx=8, fill='y')
-        # Exit
-        exit_btn = ttk.Button(self.control_frame, text="❎", command=self.quit, width=3, style="Ctrl.TButton")
-        exit_btn.pack(side="right", padx=(10, 0))
-        exit_btn.bind('<Enter>', lambda e: exit_btn.configure(style='Ctrl.Hovered.TButton'))
-        exit_btn.bind('<Leave>', lambda e: exit_btn.configure(style='Ctrl.TButton'))
+        # Exit button with absolute positioning
+        exit_btn = ttk.Button(
+            self.control_frame, 
+            text="❌",
+            command=self.quit,
+            style="Exit.TButton"
+        )
+        
+        # Configure exit button style
+        style = ttk.Style()
+        style.configure('Exit.TButton', 
+                     font=('Segoe UI', 12, 'bold'),
+                     foreground='#d32f2f',
+                     padding=2,
+                     width=3)
+        
+        style.map('Exit.TButton',
+                foreground=[('active', '#ff1744'), ('!active', '#d32f2f')],
+                background=[('active', '#ffebee'), ('!active', 'white')])
+        
+        # Place the button in the bottom-right corner
+        exit_btn.place(relx=0.99, rely=0.5, anchor='e', width=30, height=30)
 
     def get_next_photo_number(self):
         existing_photos = []
