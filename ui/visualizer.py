@@ -4,8 +4,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import tkinter as tk
 from tkinter import ttk, messagebox
 from process.pcb import PCB
-from process.scheduler import Scheduler
 from process.manager import ProcessManager
+from process.power_scheduler import PowerAwareScheduler
 from memory.memory_manager import MemoryManager
 from filesystem.mobile_fs import FileSystem
 from concurrency.background_tasks import CameraTask, MusicTask, SchedulerTask, PhotoConsumer
@@ -27,7 +27,7 @@ class OSVisualizer(tk.Tk):
         self.theme = 'light'
         self.theme_colors = get_light_theme()
 
-        self.scheduler = Scheduler()
+        self.scheduler = PowerAwareScheduler()
         self.process_manager = ProcessManager(self.scheduler)
         self.memory = MemoryManager()
         self.fs = FileSystem()
@@ -610,8 +610,7 @@ class OSVisualizer(tk.Tk):
                     print("Camera is already running.")
                     self.log_message("Camera is already running.")
                     return
-        app = PCB(pid=1, app_name="Camera", state="READY", priority=1)
-        self.scheduler.add_process(app)
+        app = self.process_manager.create_process("Camera", priority=1)
         self.memory.allocate(app.pid, 5)
         self.cap = cv2.VideoCapture(0)
         if not self.cap.isOpened():
@@ -674,8 +673,7 @@ class OSVisualizer(tk.Tk):
                     print("Music is already running.")
                     self.log_message("Music is already running.")
                     return
-        app = PCB(pid=2, app_name="Music", state="READY", priority=0)
-        self.scheduler.add_process(app)
+        app = self.process_manager.create_process("Music", priority=0)
         self.memory.allocate(app.pid, 3)
         with open("mp3_base64.txt", "r") as file:
             mp3_base64 = file.read()

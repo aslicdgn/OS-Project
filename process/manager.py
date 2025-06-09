@@ -1,17 +1,24 @@
 from process.scheduler import Scheduler
 from process.pcb import PCB
-
+import random
+ENERGY_USAGE = {
+    "Camera": 5,
+    "Music": 3,
+}
 class ProcessManager:
     def __init__(self, scheduler, start_pid=1):
         self.scheduler = scheduler
         self.pid_counter = start_pid
 
     def create_process(self, app_name: str, priority=0) -> PCB:
+        base_energy = ENERGY_USAGE.get(app_name, 5)
+        energy_usage = max(1, base_energy + random.randint(-1, 1))
         pcb = PCB(
             pid=self.pid_counter,
             app_name=app_name,
             state="READY",
-            priority=priority
+            priority=priority,
+            energy_usage=energy_usage
         )
         self.scheduler.add_process(pcb)
         print(f"Created: {pcb}")
