@@ -4,7 +4,7 @@ import uuid
 from collections import OrderedDict
 from cryptography.fernet import Fernet
 from .user import UserManager, PermissionManager, EncryptedFile
-
+import os
 
 BLOCK_SIZE = 512
 
@@ -203,6 +203,10 @@ class FileSystem:
         file = self.current_directory.files.get(name)
         if not file:
             return "File not found."
+        
+        ext = os.path.splitext(name)[1].lower()
+        if ext not in ['.txt', '.py', '.json', '.md']:
+            return "[Unsupported or binary file type.]"
 
         if self.is_encrypted(name):
             if not isinstance(file, EncryptedFile):
@@ -215,11 +219,17 @@ class FileSystem:
                 raise PermissionError("Invalid password.")
 
             decrypted = file.read()
-            return decrypted.decode('utf-8')
+            try:
+                return decrypted.decode('utf-8')
+            except UnicodeDecodeError:
+                return "[Decryption successful, but content is not UTF-8 text.]"
 
         else:
             data = file.read()
-            return data.decode('utf-8')
+            try:
+                return data.decode('utf-8')
+            except UnicodeDecodeError:
+                return "[Binary file] Cannot decode as UTF-8 text."
 
 
     def file_info(self, name):
