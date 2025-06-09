@@ -609,9 +609,9 @@ class OSVisualizer(tk.Tk):
             filename = item_text[2:].strip()
             info = self.fs.file_info(filename)
             if isinstance(info, dict):
-                self.fs_detail.insert(tk.END, f"Ad: {info['name']}\nBoyut: {info['size']} byte\nOluşturulma: {info['created_at']}\n\n")
-                self.fs_detail.delete('1.0', tk.END)
-                self.fs_detail.insert(tk.END, f"Name: {info['name']}\nSize: {info['size']} byte\nCreated Date: {info['created_at']}\n\n")
+                self.fs_detail.insert(tk.END,
+                    f"Name: {info['name']}\nSize: {info['size']} bytes\nCreated: {info['created_at']}\n\n"
+                )
                 if filename.lower().endswith(('.jpg', '.jpeg', '.png')):
                     self.close_process_by_name("Camera")
                     data = self.fs.read_file(filename)
@@ -622,14 +622,20 @@ class OSVisualizer(tk.Tk):
                     self.camera_label.config(image=imgtk)
             else:
                 content = self.fs.read_file(filename)
+                if isinstance(content, bytes):
+                    content = content.decode('utf-8', errors='ignore')
                 self.fs_detail.insert(tk.END, content)
+
         elif item_text.startswith('📁 '):
             foldername = item_text[2:].strip()
             info = self.fs.dir_info(foldername)
             if isinstance(info, dict):
-                self.fs_detail.insert(tk.END, f"Klasör: {info['name']}\nOluşturulma: {info['created_at']}\nAlt klasör: {info['folders']}\nDosya: {info['files']}\n")
+                self.fs_detail.insert(tk.END,
+                    f"Folder: {info['name']}\nCreated: {info['created_at']}\n"
+                    f"Subfolders: {info['folders']}\nFiles: {info['files']}\n"
+                )
             else:
-                self.fs_detail.insert(tk.END, "Klasör bilgisi bulunamadı.")
+                self.fs_detail.insert(tk.END, "Folder info not found.")
 
         self.fs_detail.config(state='disabled')
 
@@ -648,6 +654,8 @@ class OSVisualizer(tk.Tk):
         elif item_text.startswith("📄 "):
             filename = item_text[2:].strip()
             content = self.fs.read_file(filename)
+            if isinstance(content, bytes):
+                content = content.decode('utf-8', errors='ignore')
 
             popup = tk.Toplevel(self)
             popup.title(f"{filename} - File Viewer")
@@ -667,7 +675,6 @@ class OSVisualizer(tk.Tk):
                 self.log_message(f"{filename} saved successfully.")
                 popup.destroy()
 
-            # Button Frame
             button_frame = ttk.Frame(popup)
             button_frame.pack(pady=(0, 10))
 
@@ -677,15 +684,13 @@ class OSVisualizer(tk.Tk):
             save_btn = ttk.Button(button_frame, text="Save", command=save, state="disabled")
             save_btn.pack(side="left", padx=5)
 
-
-
-
     def create_file_popup(self):
         popup = tk.Toplevel(self)
-        popup.title('Yeni Dosya Oluştur')
-        tk.Label(popup, text='Dosya adı:').pack(padx=8, pady=4)
+        popup.title('Create New File')
+        tk.Label(popup, text='File name:').pack(padx=8, pady=4)
         entry = tk.Entry(popup)
         entry.pack(padx=8, pady=4)
+
         def create():
             filename = entry.get().strip()
             if filename:
@@ -693,7 +698,8 @@ class OSVisualizer(tk.Tk):
                 self._panel_flash(self.fs_tree)
                 self.update_file_display()
             popup.destroy()
-        ttk.Button(popup, text='Oluştur', command=create).pack(pady=6)
+
+        ttk.Button(popup, text='Create', command=create).pack(pady=6)
         entry.focus()
 
     def delete_selected_file(self):
@@ -708,15 +714,15 @@ class OSVisualizer(tk.Tk):
             if item_text.startswith('📄 '):
                 filename = item_text[2:].strip()
                 self.fs.delete_file(filename)
-                self.log_message(f"Dosya silindi: {filename}")
+                self.log_message(f"File deleted: {filename}")
             elif item_text.startswith('📁 '):
                 foldername = item_text[2:].strip()
                 self.fs.delete_directory(foldername)
-                self.log_message(f"Klasör silindi: {foldername}")
+                self.log_message(f"Folder deleted: {foldername}")
             else:
-                self.log_message("Bilinmeyen öğe türü.")
+                self.log_message("Unknown item type.")
         except Exception as e:
-            self.log_message(f"Silme işlemi başarısız: {e}")
+            self.log_message(f"Delete failed: {e}")
         finally:
             self._panel_flash(self.fs_tree)
             self.update_file_display()

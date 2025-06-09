@@ -1,25 +1,81 @@
 import time
 import threading
 
+from collections import OrderedDict
+import uuid
+
+BLOCK_SIZE = 512  # bytes
+
+class BlockStorage:
+    def __init__(self):
+        self.blocks = {}
+
+    def store(self, data):
+        block_ids = []
+        for i in range(0, len(data), BLOCK_SIZE):
+            block = data[i:i+BLOCK_SIZE]
+            block_id = str(uuid.uuid4())
+            self.blocks[block_id] = block
+            block_ids.append(block_id)
+        return block_ids
+
+    def retrieve(self, block_ids):
+        return b''.join(self.blocks[bid] for bid in block_ids if bid in self.blocks)
+
+    def delete(self, block_ids):
+        for bid in block_ids:
+            self.blocks.pop(bid, None)
+
+
+class BlockCache:
+    def __init__(self, capacity=10):
+        self.cache = OrderedDict()
+        self.capacity = capacity
+
+    def get(self, block_id):
+        if block_id in self.cache:
+            self.cache.move_to_end(block_id)
+            return self.cache[block_id]
+        return None
+
+    def put(self, block_id, data):
+        self.cache[block_id] = data
+        self.cache.move_to_end(block_id)
+        if len(self.cache) > self.capacity:
+            self.cache.popitem(last=False)
+
 
 class File:
-    def __init__(self, name, content=""):
-        if isinstance(content, bytes):
-            self.content = content
-            self.size = len(content)
-        else:
-            self.content = content
-            self.size = len(content.encode('utf-8'))
+    def __init__(self, name, content="", storage=None, cache=None):
         self.name = name
         self.created_at = time.ctime()
+        self.blocks = []
+        self.size = 0
+        self.storage = storage
+        self.cache = cache
+        if content:
+            self.write(content)
 
     def write(self, content):
-        if isinstance(content, bytes):
-            self.content = content
-            self.size = len(content)
-        else:
-            self.content = content
-            self.size = len(content.encode('utf-8'))
+        data = content.encode('utf-8') if isinstance(content, str) else content
+        if self.blocks:
+            self.storage.delete(self.blocks)
+        self.blocks = self.storage.store(data)
+        self.size = len(data)
+
+    def read(self):
+        content = []
+        for block_id in self.blocks:
+            cached = self.cache.get(block_id) if self.cache else None
+            if cached:
+                content.append(cached)
+            else:
+                block = self.storage.blocks.get(block_id, b'')
+                content.append(block)
+                if self.cache:
+                    self.cache.put(block_id, block)
+        return b''.join(content)
+    
 
 class Directory:
     def __init__(self, name):
@@ -42,6 +98,9 @@ class FileSystem:
         self.current_directory = self.root
         self.path_stack = [self.root]
         self.lock = threading.Lock()
+        self.storage = BlockStorage()
+        self.cache = BlockCache(capacity=20)  # Cache size configurable
+
 
     def get_tree_structure(self, directory=None):
         # Döndürülen yapı: { 'type': 'dir'/'file', 'name': ..., 'children': [...] }
@@ -81,23 +140,21 @@ class FileSystem:
             self.current_directory = self.path_stack[-1]
 
     def create_file(self, name, content=""):
-        with self.lock:
-            self.current_directory.create_file(name, content)
+        self.current_directory.files[name] = File(name, content, self.storage, self.cache)
+
 
     def write_file(self, name, content):
-        with self.lock:
-            if name not in self.current_directory.files:
-                self.create_file(name, content)
-            else:
-                self.current_directory.files[name].write(content)
+        if name not in self.current_directory.files:
+            self.create_file(name, content)
+        else:
+            file = self.current_directory.files[name]
+            file.write(content)
+
 
     def read_file(self, name):
-        with self.lock:
-            file = self.current_directory.files.get(name)
-            if file:
-                return file.content
-            else:
-                return "File not found."
+        file = self.current_directory.files.get(name)
+        return file.read().decode('utf-8') if file else "File not found."
+
 
     def ls(self):
         with self.lock:
