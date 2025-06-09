@@ -98,7 +98,251 @@ class OSVisualizer(tk.Tk):
 
     def increment_processed_count(self):
         self.processed_count += 1
-        self.processed_label.config(text=f"Processed Photos: {self.processed_count}")
+        if hasattr(self, 'processed_label'):
+            self.processed_label.config(text=f"Processed Photos: {self.processed_count}")
+            
+    def show_block_storage(self):
+        """Show block storage visualization window with detailed information"""
+        if hasattr(self, 'block_window') and self.block_window.winfo_exists():
+            self.block_window.lift()
+            return
+            
+        self.block_window = tk.Toplevel(self)
+        self.block_window.title("Storage Visualization")
+        self.block_window.geometry("1200x800")
+        
+        
+        notebook = ttk.Notebook(self.block_window)
+        notebook.pack(fill='both', expand=True, padx=10, pady=10)
+        
+        
+        block_tab = ttk.Frame(notebook)
+        notebook.add(block_tab, text="Block Storage")
+        
+       
+        stats_frame = ttk.LabelFrame(block_tab, text="Storage Statistics")
+        stats_frame.pack(fill='x', pady=(0, 10), padx=5)
+        
+      
+        block_storage = self.fs.storage if hasattr(self.fs, 'storage') else None
+        block_cache = self.fs.cache if hasattr(self.fs, 'cache') else None
+        
+        if not block_storage:
+            ttk.Label(stats_frame, text="Block storage not initialized").pack(pady=10)
+            return
+       
+        total_blocks = len(block_storage.blocks)
+        total_size = sum(len(block) for block in block_storage.blocks.values())
+        block_size = getattr(block_storage, 'BLOCK_SIZE', 512)
+        
+       
+        cache_hits = getattr(block_cache, 'hits', 0) if block_cache else 0
+        cache_misses = getattr(block_cache, 'misses', 0) if block_cache else 0
+        cache_size = len(block_cache.cache) if block_cache else 0
+        cache_capacity = getattr(block_cache, 'capacity', 0) if block_cache else 0
+        
+        # Display stats in a grid
+        stats_grid = ttk.Frame(stats_frame)
+        stats_grid.pack(fill='x', padx=10, pady=5)
+        
+        # Storage stats
+        ttk.Label(stats_grid, text="Storage:", font=('Arial', 9, 'bold')).grid(row=0, column=0, sticky='w')
+        ttk.Label(stats_grid, text=f"• Total Blocks: {total_blocks}").grid(row=0, column=1, sticky='w', padx=10)
+        ttk.Label(stats_grid, text=f"• Used: {total_size} / {total_blocks * block_size} bytes").grid(row=0, column=2, sticky='w', padx=10)
+        ttk.Label(stats_grid, text=f"• Block Size: {block_size} bytes").grid(row=0, column=3, sticky='w', padx=10)
+        
+        # Cache stats
+        if block_cache:
+            ttk.Label(stats_grid, text="\nCache:", font=('Arial', 9, 'bold')).grid(row=1, column=0, sticky='w', pady=(10,0))
+            ttk.Label(stats_grid, text=f"• Size: {cache_size}/{cache_capacity} blocks").grid(row=1, column=1, sticky='w', padx=10)
+            hit_ratio = cache_hits / (cache_hits + cache_misses) if (cache_hits + cache_misses) > 0 else 0
+            ttk.Label(stats_grid, text=f"• Hit Ratio: {hit_ratio:.1%}").grid(row=1, column=2, sticky='w', padx=10)
+        
+        # Block visualization frame
+        vis_frame = ttk.LabelFrame(block_tab, text="Block Storage Map")
+        vis_frame.pack(fill='both', expand=True, padx=5)
+        
+        # Create canvas with scrollbar
+        canvas = tk.Canvas(vis_frame, bg='white')
+        scrollbar = ttk.Scrollbar(vis_frame, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+        
+        scrollable_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # Display blocks in a grid (4 columns)
+        columns = 4
+        row = col = 0
+        
+        # Get all files and their blocks
+        file_blocks = {}
+        def collect_file_blocks(directory, path=""):
+            for name, file in directory.files.items():
+                if hasattr(file, 'blocks'):
+                    file_path = f"{path}/{name}" if path else name
+                    file_blocks[file_path] = {
+                        'blocks': file.blocks,
+                        'encrypted': self.fs.is_encrypted(name) if hasattr(self.fs, 'is_encrypted') else False,
+                        'size': getattr(file, 'size', 0)
+                    }
+            for name, subdir in directory.subdirectories.items():
+                new_path = f"{path}/{name}" if path else name
+                collect_file_blocks(subdir, new_path)
+        
+        collect_file_blocks(self.fs.root)
+        
+        # Create a mapping of block_id to file names
+        block_to_files = {}
+        for file_path, data in file_blocks.items():
+            for block_id in data['blocks']:
+                if block_id not in block_to_files:
+                    block_to_files[block_id] = []
+                block_to_files[block_id].append(file_path)
+        
+        # Display blocks
+        for block_id, block in block_storage.blocks.items():
+            # Create block frame
+            block_frame = ttk.Frame(scrollable_frame, width=280, height=140, 
+                                  relief='solid', padding=5)
+            block_frame.grid(row=row, column=col, padx=5, pady=5, sticky='nsew')
+            
+            # Block header
+            header_frame = ttk.Frame(block_frame)
+            header_frame.pack(fill='x')
+            
+            # Block ID (truncated) with copy button
+            short_id = f"{block_id[:6]}...{block_id[-2:]}"
+            ttk.Label(header_frame, text=f"Block: {short_id}", font=('Arial', 8, 'bold')).pack(side='left')
+            
+            # Cache indicator
+            in_cache = block_cache and block_id in block_cache.cache if block_cache else False
+            cache_icon = "✓" if in_cache else "✗"
+            cache_color = "green" if in_cache else "gray"
+            ttk.Label(header_frame, text=f"Cache: {cache_icon}", 
+                     foreground=cache_color, font=('Arial', 8)).pack(side='right', padx=5)
+            
+            # Block info
+            block_size = len(block)
+            usage_ratio = min(block_size / block_size, 1.0)
+            
+            # Files using this block
+            files_using = block_to_files.get(block_id, [])
+            files_text = "\n".join([f"• {f}" for f in files_using[:2]])
+            if len(files_using) > 2:
+                files_text += f"\n• ...and {len(files_using)-2} more"
+            
+            ttk.Label(block_frame, text=f"Size: {block_size} B", 
+                     font=('Arial', 8)).pack(anchor='w')
+            
+            # Visual usage bar
+            usage_frame = ttk.Frame(block_frame, height=15)
+            usage_frame.pack(fill='x', pady=2)
+            
+            canvas = tk.Canvas(usage_frame, height=15, bg='#f0f0f0', 
+                            highlightthickness=0)
+            canvas.pack(fill='x')
+            canvas.create_rectangle(0, 0, 200 * usage_ratio, 15, 
+                                 fill='#4CAF50', outline='')
+            canvas.create_text(100, 7, text=f"{usage_ratio:.0%} full", 
+                            fill='black' if usage_ratio < 0.5 else 'white')
+            
+            # Files using this block
+            if files_using:
+                ttk.Label(block_frame, text="Used by:", 
+                         font=('Arial', 7, 'bold')).pack(anchor='w', pady=(5,0))
+                ttk.Label(block_frame, text=files_text if files_using else "(Free)", 
+                         font=('Arial', 7), wraplength=250, justify='left').pack(anchor='w')
+            
+            
+            col = (col + 1) % columns
+            if col == 0:
+                row += 1
+        
+    
+        for i in range(columns):
+            scrollable_frame.columnconfigure(i, weight=1)
+        
+        # Tab 2: File System Tree
+        fs_tab = ttk.Frame(notebook)
+        notebook.add(fs_tab, text="File System")
+        
+     
+        tree_frame = ttk.Frame(fs_tab)
+        tree_frame.pack(fill='both', expand=True, padx=5, pady=5)
+        
+     
+        tree_scroll_y = ttk.Scrollbar(tree_frame)
+        tree_scroll_y.pack(side='right', fill='y')
+        
+        tree_scroll_x = ttk.Scrollbar(tree_frame, orient='horizontal')
+        tree_scroll_x.pack(side='bottom', fill='x')
+        
+        # Create the tree
+        tree = ttk.Treeview(tree_frame, yscrollcommand=tree_scroll_y.set, 
+                          xscrollcommand=tree_scroll_x.set)
+        tree.pack(fill='both', expand=True)
+      
+        tree_scroll_y.config(command=tree.yview)
+        tree_scroll_x.config(command=tree.xview)
+        
+       
+        tree['columns'] = ('type', 'size', 'created', 'encrypted')
+        tree.column('#0', width=300, minwidth=150)
+        tree.column('type', width=100, anchor='w')
+        tree.column('size', width=100, anchor='e')
+        tree.column('created', width=150, anchor='w')
+        tree.column('encrypted', width=80, anchor='center')
+        
+        tree.heading('#0', text='Name', anchor='w')
+        tree.heading('type', text='Type', anchor='w')
+        tree.heading('size', text='Size', anchor='e')
+        tree.heading('created', text='Created', anchor='w')
+        tree.heading('encrypted', text='Encrypted', anchor='center')
+        
+       
+        def add_directory(directory, parent=''):
+            dir_id = tree.insert(parent, 'end', text=directory.name, 
+                              values=('Directory', '', directory.created_at, ''))
+            
+           
+            for name, subdir in directory.subdirectories.items():
+                add_directory(subdir, dir_id)
+            
+            # Add files
+            for name, file in directory.files.items():
+                is_encrypted = self.fs.is_encrypted(name) if hasattr(self.fs, 'is_encrypted') else False
+                tree.insert(dir_id, 'end', text=name,
+                           values=('File', f"{getattr(file, 'size', 0)} B", 
+                                 getattr(file, 'created_at', ''), 
+                                 '✓' if is_encrypted else '✗'))
+        
+        add_directory(self.fs.root)
+        
+        # Add a close button
+        btn_frame = ttk.Frame(self.block_window)
+        btn_frame.pack(fill='x', pady=(0, 10))
+        
+        refresh_btn = ttk.Button(btn_frame, text="Refresh", 
+                               command=lambda: self.refresh_block_view())
+        refresh_btn.pack(side='left', padx=5)
+        
+        close_btn = ttk.Button(btn_frame, text="Close", 
+                             command=self.block_window.destroy)
+        close_btn.pack(side='right', padx=5)
+        
+        # Store references
+        self.block_window.tree = tree
+        
+    def refresh_block_view(self):
+        """Refresh the block storage view"""
+        if hasattr(self, 'block_window') and self.block_window.winfo_exists():
+            self.block_window.destroy()
+            self.show_block_storage()
 
 
     def fs_go_back(self):
