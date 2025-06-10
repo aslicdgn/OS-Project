@@ -643,6 +643,7 @@ class OSVisualizer(tk.Tk):
                     is_success, buffer = cv2.imencode(".jpg", frame)
                     if is_success:
                         self.fs.write_file(filename, buffer.tobytes())
+                    self.memory.allocate_file(app.pid, 5)
                     self.photo_counter += 1
         self.camera_label.winfo_toplevel().bind("<Key>", on_key)
         self.refresh()
@@ -673,6 +674,7 @@ class OSVisualizer(tk.Tk):
         self.fs.write_file("song.mp3", mp3_bytes)
         with open("song.mp3", "wb") as f:
             f.write(mp3_bytes)
+        self.memory.allocate_file(app.pid, 3)
         pygame.mixer.init()
         try:
             pygame.mixer.music.load("song.mp3")  
@@ -1064,6 +1066,8 @@ class OSVisualizer(tk.Tk):
                 if pcb.app_name == app_name:
                     self.process_manager.terminate_process(pcb.pid)
                     self.memory.deallocate(pcb.pid)
+                    file_id = hash(pcb.app_name)
+                    self.memory.deallocate_file(file_id)
                     found = True
                     break
             if found:

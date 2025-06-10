@@ -14,6 +14,7 @@ class MemoryManager:
         self.total_frames: int = MEMORY_SIZE
         self._frames: list[int | None] = [None] * self.total_frames
         self._page_tables: dict[int, list[int]] = {}
+        self._file_pages: dict[int, list[int]] = {}
         self._lock = Lock()
 
     @property
@@ -41,14 +42,35 @@ class MemoryManager:
 
             self._page_tables.setdefault(pid, []).extend(taken)
             return True
+    
+    def allocate_file(self, file_id: int, num_pages: int) -> bool:
+        with self._lock:
+            free_frames = [i for i, owner in enumerate(self._frames) if owner is None]
+            if len(free_frames) < num_pages:
+                return False
+
+            taken = free_frames[:num_pages]
+            for idx in taken:
+                self._frames[idx] = file_id  
+            self._file_pages.setdefault(file_id, []).extend(taken)
+            return True
 
     def deallocate(self, pid: int) -> None:
         with self._lock:
             if pid not in self._page_tables:
                 return
             for idx in self._page_tables[pid]:
-                self._frames[idx] = None
+                if all(idx not in pages for pages in self._file_pages.values()):
+                    self._frames[idx] = None
             del self._page_tables[pid]
+    
+    def deallocate_file(self, file_id: int) -> None:
+        with self._lock:
+            if file_id not in self._file_pages:
+                return
+            for idx in self._file_pages[file_id]:
+                self._frames[idx] = None
+            del self._file_pages[file_id]
 
     def translate(self, pid: int, logical_address: int) -> int:
         page_no, offset = divmod(logical_address, self.FRAME_SIZE)
