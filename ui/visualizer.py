@@ -374,14 +374,11 @@ class OSVisualizer(tk.Tk):
         self.network_icon.pack(side="right", padx=(0,2))
         self.battery_icon = ttk.Label(self.status_frame, text=ICONS['battery'], font=icon_font, foreground="#fbc02d")
         self.battery_icon.pack(side="right", padx=(0,2))
-        # Tema değiştirme butonu
+       
         self.theme_btn = ttk.Button(self.status_frame, text=ICONS['theme_light'], width=3, command=self.switch_theme)
         self.theme_btn.pack(side="right", padx=(0,2))
-        # Saat
-        self.time_status = ttk.Label(self.status_frame, text="System Time: 00:00:00",
-                                   font=status_font, relief="sunken", padding=5, foreground="#1976d2")
-        self.time_status.pack(side="right", padx=2)
-        # Tüm widgetlar oluşturulduktan sonra tema uygula
+       
+   
         self.apply_theme()
 
 
@@ -389,58 +386,52 @@ class OSVisualizer(tk.Tk):
                                    relief="sunken", padding=5)
         self.time_status.pack(side="right", padx=2)
 
-        # System State Frame
         self.info_frame = ttk.LabelFrame(self, text="System State")
         self.info_frame.pack(fill="both", expand=True, padx=10, pady=5)
 
-        # Process and Memory Panels
         top_panel = ttk.Frame(self.info_frame)
         top_panel.pack(fill="both", expand=True)
 
-        # Process Panel
         proc_frame = ttk.LabelFrame(top_panel, text="Processes")
         proc_frame.pack(side="left", fill="both", expand=True, padx=5, pady=5)
 
         self.process_text = tk.Text(proc_frame, height=10, width=50)
         self.process_text.pack(fill="both", expand=True, padx=5, pady=5)
 
-        # Memory Panel
         mem_frame = ttk.LabelFrame(top_panel, text="Memory")
         mem_frame.pack(side="right", fill="both", expand=True, padx=5, pady=5)
 
-        # Memory visualization
+        
         self.memory_canvas = tk.Canvas(mem_frame, height=150, bg='white')
         self.memory_canvas.pack(fill="both", expand=True, padx=5, pady=5)
 
-        # Memory stats
+       
         self.mem_stats = ttk.Label(mem_frame, text="Total: 0 KB | Used: 0 KB | Free: 0 KB")
         self.mem_stats.pack(fill="x", padx=5, pady=(0, 5))
 
-        # File System and Logs
         bottom_panel = ttk.Frame(self.info_frame)
         bottom_panel.pack(fill="both", expand=True)
 
-        # File System Panel
+    
         fs_frame = ttk.LabelFrame(bottom_panel, text="File System")
         fs_frame.pack(side="left", fill="both", expand=True, padx=5, pady=5)
 
-        # Dosya gezgini (Treeview)
-        # Modern scrollbar için style
+        
         style = ttk.Style()
         style.configure('Modern.Vertical.TScrollbar', gripcount=0, background='#b0bec5', troughcolor='#eceff1', bordercolor='#90a4ae', lightcolor='#eceff1', darkcolor='#90a4ae', arrowcolor='#1976d2')
-        # Dosya gezgini (Treeview) ve scrollbar
+        
         self.fs_tree = ttk.Treeview(fs_frame, columns=("type",), show="tree")
         vsb = ttk.Scrollbar(fs_frame, orient="vertical", command=self.fs_tree.yview, style='Modern.Vertical.TScrollbar')
         self.fs_tree.configure(yscrollcommand=vsb.set)
         self.fs_tree.pack(side="left", fill="both", expand=True, padx=2, pady=2)
         vsb.pack(side="left", fill="y")
         self.fs_tree.bind("<<TreeviewSelect>>", self.on_fs_select)
-        # Dosya gezgini üstünde yol etiketi ve gezinme butonları
+        
         nav_frame = ttk.Frame(fs_frame)
         nav_frame.pack(side="top", fill="x", pady=(2,0))
         self.fs_path_label = ttk.Label(nav_frame, text="/", font=("Segoe UI", 9, "italic"))
         self.fs_path_label.pack(side="left", padx=4)
-        # Search box
+   
         ttk.Label(nav_frame, text="🔍 Search:").pack(side="left", padx=(10,2))
         self.fs_search_var = tk.StringVar()
         fs_search_entry = ttk.Entry(nav_frame, textvariable=self.fs_search_var, width=16)
@@ -452,19 +443,19 @@ class OSVisualizer(tk.Tk):
         new_folder_btn.pack(side="right", padx=2)
         self._add_tooltip(new_folder_btn, "Create new folder")
         self._add_tooltip(back_btn, "Go to parent directory")
-        # Dosya içeriği/detayı gösteren alan ve scrollbar
+     
         self.fs_detail = tk.Text(fs_frame, height=8, width=30, state='disabled')
         log_vsb = ttk.Scrollbar(fs_frame, orient="vertical", command=self.fs_detail.yview, style='Modern.Vertical.TScrollbar')
         self.fs_detail.configure(yscrollcommand=log_vsb.set)
         self.fs_detail.pack(side="right", fill="both", expand=False, padx=2, pady=2)
         log_vsb.pack(side="right", fill="y")
-        # Camera
+      
         self.camera_frame = ttk.Frame(fs_frame, height=120)
         self.camera_frame.pack_propagate(False)
         self.camera_frame.pack(side="top", fill="x", padx=2, pady=5)
         self.camera_label = tk.Label(self.camera_frame)
         self.camera_label.pack(fill="both", expand=True)
-        # Dosya işlemleri için butonlar (modern ve tooltip'li)
+       
         btn_frame = ttk.Frame(fs_frame)
         btn_frame.pack(side="bottom", fill="x", pady=2)
         style = ttk.Style()
@@ -479,7 +470,7 @@ class OSVisualizer(tk.Tk):
         del_file_btn.pack(side="left", padx=2)
         self._add_tooltip(new_file_btn, "Create new file")
         self._add_tooltip(del_file_btn, "Delete selected file")
-        # Hover efekti için event binding
+  
         def hover_on(e, btn): btn.configure(style='Hovered.TButton')
         def hover_off(e, btn): btn.configure(style='Modern.TButton')
         new_file_btn.bind('<Enter>', lambda e: hover_on(e, new_file_btn))
@@ -490,7 +481,7 @@ class OSVisualizer(tk.Tk):
         new_folder_btn.bind('<Leave>', lambda e: hover_off(e, new_folder_btn))
         back_btn.bind('<Enter>', lambda e: hover_on(e, back_btn))
         back_btn.bind('<Leave>', lambda e: hover_off(e, back_btn))
-        # Dosya gezgini satır hover efekti
+  
         def on_tree_motion(event):
             row = self.fs_tree.identify_row(event.y)
             for iid in self.fs_tree.get_children():
@@ -527,7 +518,7 @@ class OSVisualizer(tk.Tk):
             background=[('active', '#e3f2fd'), ('!active', '#e0e0e0')],
             relief=[('pressed', 'sunken'), ('!pressed', 'raised')])
         ctrl_style.configure('Ctrl.Hovered.TButton', background='#e3f2fd', foreground="#1976d2", font=("Segoe UI", 10, "bold"), padding=6, borderwidth=0)
-        # Uygulama butonları grubu
+      
         app_frame = ttk.Frame(self.control_frame)
         app_frame.pack(side="left", padx=(0, 10))
         ttk.Label(app_frame, text="📱 Applications:", font=("Segoe UI", 10, "bold")).pack(side="left", padx=(0, 5))
@@ -535,12 +526,12 @@ class OSVisualizer(tk.Tk):
         cam_btn.pack(side="left", padx=2)
         mus_btn = ttk.Button(app_frame, text="🎵 Launch Music", command=self.launch_music, style="Ctrl.TButton")
         mus_btn.pack(side="left", padx=2)
-        # Hover efektleri
+  
         for btn in [cam_btn, mus_btn]:
             btn.bind('<Enter>', lambda e, b=btn: b.configure(style='Ctrl.Hovered.TButton'))
             btn.bind('<Leave>', lambda e, b=btn: b.configure(style='Ctrl.TButton'))
         ttk.Separator(self.control_frame, orient='vertical').pack(side='left', padx=8, fill='y')
-        # Process control grubu
+      
         proc_frame = ttk.Frame(self.control_frame)
         proc_frame.pack(side="left", padx=(0, 10))
         ttk.Label(proc_frame, text="⚙️ Process Control:", font=("Segoe UI", 10, "bold")).pack(side="left", padx=5)
@@ -554,7 +545,7 @@ class OSVisualizer(tk.Tk):
             btn.bind('<Enter>', lambda e, b=btn: b.configure(style='Ctrl.Hovered.TButton'))
             btn.bind('<Leave>', lambda e, b=btn: b.configure(style='Ctrl.TButton'))
         ttk.Separator(self.control_frame, orient='vertical').pack(side='left', padx=8, fill='y')
-        # Tasks grubu
+  
         task_frame = ttk.Frame(self.control_frame)
         task_frame.pack(side="left", padx=(0, 10))
         ttk.Label(task_frame, text="🔄 Tasks:", font=("Segoe UI", 10, "bold")).pack(side="left", padx=5)
@@ -568,7 +559,7 @@ class OSVisualizer(tk.Tk):
             btn.bind('<Enter>', lambda e, b=btn: b.configure(style='Ctrl.Hovered.TButton'))
             btn.bind('<Leave>', lambda e, b=btn: b.configure(style='Ctrl.TButton'))
         ttk.Separator(self.control_frame, orient='vertical').pack(side='left', padx=8, fill='y')
-        # Exit button with absolute positioning
+    
         exit_btn = ttk.Button(
             self.control_frame, 
             text="❌",
@@ -576,7 +567,7 @@ class OSVisualizer(tk.Tk):
             style="Exit.TButton"
         )
         
-        # Configure exit button style
+  
         style = ttk.Style()
         style.configure('Exit.TButton', 
                      font=('Segoe UI', 12, 'bold'),
@@ -588,7 +579,7 @@ class OSVisualizer(tk.Tk):
                 foreground=[('active', '#ff1744'), ('!active', '#d32f2f')],
                 background=[('active', '#ffebee'), ('!active', 'white')])
         
-        # Place the button in the bottom-right corner
+
         exit_btn.place(relx=0.99, rely=0.5, anchor='e', width=30, height=30)
 
     def get_next_photo_number(self):
@@ -718,23 +709,19 @@ class OSVisualizer(tk.Tk):
 
     def update_status_bar(self):
         """Update all status bar information"""
-        # Update background tasks status
         bg_running = any([t.is_alive() if hasattr(t, 'is_alive') else False 
                          for t in [self.bg_camera, self.bg_music, self.bg_scheduler]])
         bg_text = "Background Tasks: Running" if bg_running else "Background Tasks: Stopped"
         self.bg_status.config(text=bg_text, 
                             foreground="green" if bg_running else "red")
         
-        # Update memory status
         used = sum(1 for p in self.memory.pages if p is not None)
         total = len(self.memory.pages)
         self.mem_status.config(text=f"Memory: {used}/{total} KB")
         
-        # Update process count
         proc_count = sum(len(q) for q in self.scheduler.list_queues().values())
         self.proc_status.config(text=f"Processes: {proc_count}")
         
-        # Update time
         self.time_status.config(text=f"System Time: {self.get_current_time()}")
     
     def refresh(self):
@@ -758,17 +745,14 @@ class OSVisualizer(tk.Tk):
         width = self.memory_canvas.winfo_width()
         height = self.memory_canvas.winfo_height()
         
-        # Draw memory blocks
         cell_width = max(10, width / len(self.memory.pages))
         for i, page in enumerate(self.memory.pages):
             x1 = i * cell_width
             x2 = (i + 1) * cell_width
             
-            # Different colors for different processes
             if page is None:
                 color = "#f0f0f0"  # Free memory
             else:
-                # Generate a color based on process ID for better visualization
                 import hashlib
                 color = f"#{hashlib.md5(str(page).encode()).hexdigest()[:6]}"
             
@@ -778,7 +762,6 @@ class OSVisualizer(tk.Tk):
                 self.memory_canvas.create_text(x1 + cell_width/2, height-15, 
                                              text=str(page), font=("Arial", 7))
         
-        # Update memory stats
         used = sum(1 for p in self.memory.pages if p is not None)
         total = len(self.memory.pages)
         self.mem_stats.config(
@@ -786,10 +769,8 @@ class OSVisualizer(tk.Tk):
                  f"Usage: {used/total*100:.1f}%" if total > 0 else "0%")
 
     def update_file_display(self):
-    # Arama metni
         search_term = self.fs_search_var.get().lower()
 
-        # Önce seçili elemanı al
         selected = self.fs_tree.selection()
         selected_text = None
         if selected:
@@ -802,7 +783,6 @@ class OSVisualizer(tk.Tk):
         for folder in self.fs.current_directory.subdirectories.values():
             self.fs_tree.insert('', 'end', text="📁 " + folder.name)
 
-        # Önceki seçim geri yükleniyor
         if selected_text:
             for item in self.fs_tree.get_children():
                 if self.fs_tree.item(item, "text") == selected_text:
@@ -834,7 +814,6 @@ class OSVisualizer(tk.Tk):
         entry.focus()
 
     def _add_tooltip(self, widget, text):
-        # Basit tooltip desteği
         tooltip = tk.Toplevel(widget)
         tooltip.withdraw()
         tooltip.overrideredirect(True)
@@ -851,7 +830,6 @@ class OSVisualizer(tk.Tk):
         widget.bind('<Leave>', leave)
 
     def _panel_flash(self, widget):
-        # Panelde animasyon/akışkanlık için kısa renk efekti
         orig = widget.cget('background') if 'background' in widget.keys() else '#fff'
         try:
             widget.configure(background='#b3e5fc')
@@ -944,7 +922,6 @@ class OSVisualizer(tk.Tk):
 
                 def save():
                     new_content = text_widget.get("1.0", tk.END).rstrip()
-                    # Kaydetme sırasında dosyayı şifrele ya da şifreyi kaldır
                     if encrypt_var.get():
                         pwd_popup = tk.Toplevel(popup)
                         pwd_popup.title("Enter password to encrypt")
@@ -967,7 +944,6 @@ class OSVisualizer(tk.Tk):
 
                         tk.Button(pwd_popup, text="OK", command=confirm_pwd).pack(pady=5)
                     else:
-                        # Şifre olmadan kaydet
                         self.fs.write_file(filename, new_content)
                         self.log_message(f"{filename} saved without encryption.")
                         popup.destroy()
@@ -986,7 +962,6 @@ class OSVisualizer(tk.Tk):
                 btn_encrypt.pack(side="left", padx=5)
                 btn_encrypt.config(state="disabled")
 
-            # Şifreli dosyaysa önce şifre sor
             if self.fs.is_encrypted(filename):
                 pwd_popup = tk.Toplevel(self)
                 pwd_popup.title(f"Enter password for {filename}")
