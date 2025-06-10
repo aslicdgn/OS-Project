@@ -205,7 +205,10 @@ class FileSystem:
             return "File not found."
         
         ext = os.path.splitext(name)[1].lower()
-        if ext not in ['.txt', '.py', '.json', '.md']:
+        text_exts = ['.txt', '.py', '.json', '.md']
+        binary_exts = ['.jpg', '.png', '.gif', '.bmp']
+        
+        if ext not in text_exts + binary_exts:
             return "[Unsupported or binary file type.]"
 
         if self.is_encrypted(name):
@@ -219,17 +222,23 @@ class FileSystem:
                 raise PermissionError("Invalid password.")
 
             decrypted = file.read()
-            try:
-                return decrypted.decode('utf-8')
-            except UnicodeDecodeError:
-                return "[Decryption successful, but content is not UTF-8 text.]"
+            if ext in text_exts:
+                try:
+                    return decrypted.decode('utf-8')
+                except UnicodeDecodeError:
+                    return "[Decryption successful, but content is not UTF-8 text.]"
+            else:  
+                return decrypted
 
         else:
             data = file.read()
-            try:
-                return data.decode('utf-8')
-            except UnicodeDecodeError:
-                return "[Binary file] Cannot decode as UTF-8 text."
+            if ext in text_exts:
+                try:
+                    return data.decode('utf-8')
+                except UnicodeDecodeError:
+                    return "[Binary file] Cannot decode as UTF-8 text."
+            else:  
+                return data
 
 
     def file_info(self, name):
