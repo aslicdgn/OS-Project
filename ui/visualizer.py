@@ -777,11 +777,15 @@ class OSVisualizer(tk.Tk):
             selected_text = self.fs_tree.item(selected[0], "text")
 
         self.fs_tree.delete(*self.fs_tree.get_children())
+        
         for file in self.fs.current_directory.files.values():
-            prefix = "🔒 " if self.fs.is_encrypted(file.name) else "📄 "
-            self.fs_tree.insert('', 'end', text=prefix + file.name)
+            if not search_term or search_term in file.name.lower():
+                prefix = "🔒 " if self.fs.is_encrypted(file.name) else "📄 "
+                self.fs_tree.insert('', 'end', text=prefix + file.name)
+        
         for folder in self.fs.current_directory.subdirectories.values():
-            self.fs_tree.insert('', 'end', text="📁 " + folder.name)
+            if not search_term or search_term in folder.name.lower():
+                self.fs_tree.insert('', 'end', text="📁 " + folder.name)
 
         if selected_text:
             for item in self.fs_tree.get_children():
